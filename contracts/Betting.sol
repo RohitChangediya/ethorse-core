@@ -4,9 +4,9 @@ import "./usingOraclize.sol";
 contract Betting is usingOraclize {
 
     uint public voter_count=0;
-    bytes32 public coin_pointer;
-    bytes32 public temp_ID;
-    uint public countdown=3;
+    bytes32 coin_pointer;
+    bytes32 temp_ID;
+    uint countdown=3;
     address public owner;
     int public BTC_delta;
     int public ETH_delta;
@@ -14,7 +14,7 @@ contract Betting is usingOraclize {
     bytes32 BTC;
     bytes32 ETH;
     bytes32 LTC;
-    bool public betting_open=true;
+    bool public betting_open=false;
     bool public race_start=false;
 
     struct user_info{
@@ -56,17 +56,18 @@ contract Betting is usingOraclize {
     }
 
     modifier lockBets {
-        require(betting_open);
+        require(!race_start && betting_open);
         _;
     }
 
-    modifier startRace {
-        require(!race_start);
+    modifier startBets {
+        require(!race_start && !betting_open);
         _;
     }
 
     function __callback(bytes32 myid, string result, bytes proof) {
       if (msg.sender != oraclize_cbAddress()) throw;
+      race_start = true;
       coin_pointer = oraclizeIndex[myid];
 
       if (coinIndex[coin_pointer].price_check != true) {
@@ -83,7 +84,7 @@ contract Betting is usingOraclize {
       }
     }
 
-    function placeBet(bytes32 horse) external payable {
+    function placeBet(bytes32 horse) external payable lockBets {
       voterIndex[voter_count].from = msg.sender;
       voterIndex[voter_count].amount = msg.value;
       voterIndex[voter_count].horse = horse;
@@ -97,42 +98,42 @@ contract Betting is usingOraclize {
       Deposit(msg.sender, msg.value);
     }
 
-    function update(uint betting_duration) payable startRace {
+    function update(uint delay, uint betting_duration) payable startBets {
         if (oraclize_getPrice("URL") > (this.balance)) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
-            race_start = true;
+            betting_open = true;
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             // bets open price query
-            temp_ID = oraclize_query(60, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
+            temp_ID = oraclize_query(60+delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
             oraclizeIndex[temp_ID] = bytes32("ETH");
 
-            temp_ID = oraclize_query(60, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
+            temp_ID = oraclize_query(60+delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
             oraclizeIndex[temp_ID] = bytes32("BTC");
 
-            temp_ID = oraclize_query(60, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
+            temp_ID = oraclize_query(60+delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
             oraclizeIndex[temp_ID] = bytes32("LTC");
 
             //bets closing price query
-            temp_ID = oraclize_query(betting_duration, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",3000000);
+            temp_ID = oraclize_query(delay+betting_duration, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",3000000);
             oraclizeIndex[temp_ID] = bytes32("BTC");
 
-            temp_ID = oraclize_query(betting_duration, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",3000000);
+            temp_ID = oraclize_query(delay+betting_duration, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",3000000);
             oraclizeIndex[temp_ID] = bytes32("ETH");
 
-            temp_ID = oraclize_query(betting_duration, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd",3000000);
+            temp_ID = oraclize_query(delay+betting_duration, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd",3000000);
             oraclizeIndex[temp_ID] = bytes32("LTC");
         }
     }
 
-    function reward() {
+    function reward() internal {
       // calculating the difference in price with a precision of 5 digits
       BTC=bytes32("BTC");
       ETH=bytes32("ETH");
       LTC=bytes32("LTC");
-      BTC_delta = int(coinIndex[BTC].post - coinIndex[BTC].pre)/int(coinIndex[BTC].pre);
-      ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)/int(coinIndex[ETH].pre);
-      LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)/int(coinIndex[LTC].pre);
+      BTC_delta = int(coinIndex[BTC].post - coinIndex[BTC].pre)*10000/int(coinIndex[BTC].pre);
+      ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
+      LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
       // contract fee
       owner.transfer((this.balance*15)/100);
