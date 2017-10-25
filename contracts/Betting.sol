@@ -17,6 +17,7 @@ contract Betting is usingOraclize {
     bool public betting_open=false;
     bool public race_start=false;
     bool public race_end=false;
+    uint treasury = 0;
 
     struct user_info{
         address from;
@@ -146,8 +147,12 @@ contract Betting is usingOraclize {
       ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
       LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
+      total_reward = this.balance - treasury;
+
       // house fee
-      owner.transfer((this.balance*15)/100);
+      uint house_fee = (total_reward*15)/100;
+      total_reward -= house_fee;
+      owner.transfer(house_fee);
 
       if (BTC_delta > ETH_delta) {
           if (BTC_delta > LTC_delta) {
@@ -164,34 +169,32 @@ contract Betting is usingOraclize {
               winner_horse = LTC;
           }
       }
-     total_reward = this.balance;
+
      race_end = true;
     }
 
-    function check_reward() afterRace constant returns (uint) {
-        if (!rewardindex[msg.sender].calculated) {
+    function calculate_reward(address candidate) afterRace internal constant {
+        if (!rewardindex[candidate].calculated) {
           for (uint i=0; i<voter_count+1; i++) {
-            if (voterIndex[i].from == msg.sender && voterIndex[i].horse == winner_horse) {
-              winner_reward = (voterIndex[i].amount / coinIndex[winner_horse].total )*total_reward;
+            if (voterIndex[i].from == candidate && voterIndex[i].horse == winner_horse) {
+              winner_reward = (((total_reward*10000)/coinIndex[winner_horse].total)*voterIndex[i].amount)/10000;
               rewardindex[voterIndex[i].from].amount += winner_reward;
             }
           }
           rewardindex[msg.sender].calculated = true;
         }
+    }
+
+    function check_reward() afterRace constant returns (uint) {
+        calculate_reward(msg.sender);
         return rewardindex[msg.sender].amount;
     }
-    function claim() afterRace {
-        if (!rewardindex[msg.sender].calculated) {
-          for (uint i=0; i<voter_count+1; i++) {
-            if (voterIndex[i].from == msg.sender && voterIndex[i].horse == winner_horse) {
-              winner_reward = (voterIndex[i].amount / coinIndex[winner_horse].total )*total_reward;
-              rewardindex[voterIndex[i].from].amount += winner_reward;
-            }
-          }
-          rewardindex[msg.sender].calculated = true;
-        }
-        msg.sender.transfer(rewardindex[msg.sender].amount);
-        Withdraw(msg.sender, winner_reward);
+    function claim_reward() afterRace {
+        calculate_reward(msg.sender);
+        uint transfer_amount = rewardindex[msg.sender].amount;
+        rewardindex[msg.sender].amount = 0;
+        msg.sender.transfer(transfer_amount);
+        Withdraw(msg.sender, transfer_amount);
     }
 
     function stringToUintNormalize(string s) constant returns (uint result) {
@@ -211,6 +214,11 @@ contract Betting is usingOraclize {
         result = result*10;
         p=p-1;
       }
+    }
+
+    function treasury_gas() payable onlyOwner {
+        treasury += msg.value;
+        Deposit(owner,msg.value);
     }
 
     function getCoinIndex(bytes32 index) constant returns (uint, uint, uint, bool, uint) {
