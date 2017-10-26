@@ -49,7 +49,6 @@ contract Betting is usingOraclize {
     event newPriceTicker(uint price);
     event Deposit(address _from, uint256 _value);
     event Withdraw(address _to, uint256 _value);
-    event RewardCheck(address _candidate, uint _local, uint _total);
 
     function Betting() {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
@@ -151,7 +150,7 @@ contract Betting is usingOraclize {
       total_reward = this.balance - treasury;
 
       // house fee
-      uint house_fee = (total_reward*15)/100;
+      uint house_fee = (total_reward*5)/100;
       total_reward -= house_fee;
       owner.transfer(house_fee);
 
@@ -184,12 +183,12 @@ contract Betting is usingOraclize {
     }
 
     function check_reward() afterRace constant returns (uint) {
-        if (rewardIndex[msg.sender].rewarded) throw;
+        require(!rewardIndex[msg.sender].rewarded);
         calculate_reward(msg.sender);
         return rewardIndex[msg.sender].amount;
     }
     function claim_reward() afterRace {
-        if (rewardIndex[msg.sender].rewarded) throw;
+        require(!rewardIndex[msg.sender].rewarded);
         calculate_reward(msg.sender);
         uint transfer_amount = rewardIndex[msg.sender].amount;
         rewardIndex[msg.sender].rewarded = true;
