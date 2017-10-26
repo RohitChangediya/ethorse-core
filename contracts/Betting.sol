@@ -12,8 +12,8 @@ contract Betting is usingOraclize {
     int public ETH_delta;
     int public LTC_delta;
     bytes32 public BTC=bytes32("BTC");
-    bytes32 ETH=bytes32("ETH");
-    bytes32 LTC=bytes32("LTC");
+    bytes32 public ETH=bytes32("ETH");
+    bytes32 public LTC=bytes32("LTC");
     bool public betting_open=false;
     bool public race_start=false;
     bool public race_end=false;
@@ -33,13 +33,13 @@ contract Betting is usingOraclize {
     }
     struct reward_info {
         uint amount;
-        bool calculated;
+        bool rewarded;
     }
     /*mapping (address => info) voter;*/
     mapping (bytes32 => bytes32) oraclizeIndex;
     mapping (bytes32 => coin_info) coinIndex;
     mapping (uint => user_info) voterIndex;
-    mapping (address => reward_info) rewardindex;
+    mapping (address => reward_info) rewardIndex;
 
     uint public total_reward;
     bytes32 public winner_horse;
@@ -49,6 +49,7 @@ contract Betting is usingOraclize {
     event newPriceTicker(uint price);
     event Deposit(address _from, uint256 _value);
     event Withdraw(address _to, uint256 _value);
+    event RewardCheck(address _candidate, uint _local, uint _total);
 
     function Betting() {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
@@ -110,7 +111,7 @@ contract Betting is usingOraclize {
       Deposit(msg.sender, msg.value);
     }
 
-    function update(uint delay, uint betting_duration) payable {
+    function update(uint delay, uint betting_duration) onlyOwner payable {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
@@ -173,26 +174,25 @@ contract Betting is usingOraclize {
      race_end = true;
     }
 
-    function calculate_reward(address candidate) afterRace internal constant {
-        if (!rewardindex[candidate].calculated) {
-          for (uint i=0; i<voter_count+1; i++) {
-            if (voterIndex[i].from == candidate && voterIndex[i].horse == winner_horse) {
-              winner_reward = (((total_reward*10000)/coinIndex[winner_horse].total)*voterIndex[i].amount)/10000;
-              rewardindex[voterIndex[i].from].amount += winner_reward;
-            }
-          }
-          rewardindex[msg.sender].calculated = true;
+    function calculate_reward(address candidate) afterRace constant {
+      for (uint i=0; i<voter_count+1; i++) {
+        if (voterIndex[i].from == candidate && voterIndex[i].horse == winner_horse) {
+          winner_reward = (((total_reward*10000)/coinIndex[winner_horse].total)*voterIndex[i].amount)/10000;
+          rewardIndex[voterIndex[i].from].amount += winner_reward;
         }
+      }
     }
 
     function check_reward() afterRace constant returns (uint) {
+        if (rewardIndex[msg.sender].rewarded) throw;
         calculate_reward(msg.sender);
-        return rewardindex[msg.sender].amount;
+        return rewardIndex[msg.sender].amount;
     }
     function claim_reward() afterRace {
+        if (rewardIndex[msg.sender].rewarded) throw;
         calculate_reward(msg.sender);
-        uint transfer_amount = rewardindex[msg.sender].amount;
-        rewardindex[msg.sender].amount = 0;
+        uint transfer_amount = rewardIndex[msg.sender].amount;
+        rewardIndex[msg.sender].rewarded = true;
         msg.sender.transfer(transfer_amount);
         Withdraw(msg.sender, transfer_amount);
     }
@@ -224,16 +224,13 @@ contract Betting is usingOraclize {
     function getCoinIndex(bytes32 index) constant returns (uint, uint, uint, bool, uint) {
       return (coinIndex[index].total, coinIndex[index].pre, coinIndex[index].post, coinIndex[index].price_check, coinIndex[index].count);
     }
-
-    function getUserCount(bytes32 index) constant returns (uint) {
-        return coinIndex[index].count;
-    }
-
-    function getPoolValue(bytes32 index) constant returns (uint) {
-        return coinIndex[index].total;
+    
+    function reward_total() constant returns (uint) {
+        return (coinIndex[BTC].total + coinIndex[ETH].total + coinIndex[LTC].total);
     }
 
     function suicide () onlyOwner {
         owner.transfer(this.balance);
     }
+    
   }
