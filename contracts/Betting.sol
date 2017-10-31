@@ -149,7 +149,7 @@ contract Betting is usingOraclize {
 
       total_reward = this.balance - treasury;
 
-      // house fee
+      // book fee
       uint house_fee = (total_reward*5)/100;
       total_reward -= house_fee;
       owner.transfer(house_fee);
