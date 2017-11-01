@@ -17,6 +17,7 @@ contract Betting is usingOraclize {
     bool public betting_open=false;
     bool public race_start=false;
     bool public race_end=false;
+    bool public voided_bet=false;
     uint treasury = 0;
 
     struct user_info{
@@ -74,6 +75,10 @@ contract Betting is usingOraclize {
     modifier afterRace {
         require(race_end);
         _;
+    }
+
+    modifier voidedBet {
+        require(voided_bet);
     }
 
     function __callback(bytes32 myid, string result, bytes proof) {
@@ -183,6 +188,7 @@ contract Betting is usingOraclize {
     }
 
     function check_reward() afterRace constant returns (uint) {
+        if
         require(!rewardIndex[msg.sender].rewarded);
         calculate_reward(msg.sender);
         return rewardIndex[msg.sender].amount;
@@ -228,7 +234,7 @@ contract Betting is usingOraclize {
         return (coinIndex[BTC].total + coinIndex[ETH].total + coinIndex[LTC].total);
     }
 
-    function suicide () onlyOwner {
+    function restore () onlyOwner voidedBet {
         owner.transfer(this.balance);
     }
     
