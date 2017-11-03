@@ -102,6 +102,7 @@ contract Betting is usingOraclize {
 
     function placeBet(bytes32 horse) external payable lockBetting {
         //TODO: min 0.1; max 1.0;
+        require(msg.value > 0.1 ether && msg.value < 1.0 ether);
         voterIndex[voter_count].from = msg.sender;
         voterIndex[voter_count].amount = msg.value;
         voterIndex[voter_count].horse = horse;
