@@ -1,77 +1,101 @@
 pragma solidity ^0.4.10;
 import "./usingOraclize.sol";
 
-contract Betting is usingOraclize {
+library SafeMath {
+  function mul(uint256 a, uint256 b) internal constant returns (uint256) {
+    uint256 c = a * b;
+    assert(a == 0 || c / a == b);
+    return c;
+  }
 
-    uint public voter_count=0;
-    bytes32 coin_pointer;
-    bytes32 temp_ID;
-    uint countdown=3;
-    address public owner;
-    int public BTC_delta;
-    int public ETH_delta;
-    int public LTC_delta;
-    bytes32 public BTC=bytes32("BTC");
-    bytes32 public ETH=bytes32("ETH");
-    bytes32 public LTC=bytes32("LTC");
-    bool public betting_open=false;
-    bool public race_start=false;
-    bool public race_end=false;
-    bool public voided_bet=false;
-    uint treasury = 0;
-    uint starting_time;
-    uint race_duration;
+  function div(uint256 a, uint256 b) internal constant returns (uint256) {
+    // assert(b > 0); // Solidity automatically throws when dividing by 0
+    uint256 c = a / b;
+    // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+    return c;
+  }
+
+  function sub(uint256 a, uint256 b) internal constant returns (uint256) {
+    assert(b <= a);
+    return a - b;
+  }
+
+  function add(uint256 a, uint256 b) internal constant returns (uint256) {
+    uint256 c = a + b;
+    assert(c >= a);
+    return c;
+  }
+}
+
+contract Betting is usingOraclize {
+    using SafeMath for uint256;
+
+    uint public voter_count=0; //total number of Bettors
+    bytes32 coin_pointer; // variable to differentiate different callbacks
+    bytes32 temp_ID; // temp variable to store oraclize IDs
+    uint countdown=3; // variable to check if all prices are received
+    address public owner; //owner address
+    int public BTC_delta; //BTC delta value
+    int public ETH_delta; //ETH delta value
+    int public LTC_delta; //LTC delta value
+    bytes32 public BTC=bytes32("BTC"); //32-bytes equivalent of BTC
+    bytes32 public ETH=bytes32("ETH"); //32-bytes equivalent of ETH
+    bytes32 public LTC=bytes32("LTC"); //32-bytes equivalent of LTC
+    bool public betting_open=false; // boolean: check if betting is open
+    bool public race_start=false; //boolean: check if race has started
+    bool public race_end=false; //boolean: check if race has ended
+    bool public voided_bet=false; //boolean: check if race has been voided
+    uint choke = 0; // ethers to kickcstart the oraclize queries
+    uint starting_time; // timestamp of when the race starts
+    uint race_duration; // duration of the race
 
     struct user_info{
-        address from;
-        bytes32 horse;
-        uint amount;
+        address from; // address of Bettor
+        bytes32 horse; // coin on which amount is bet on
+        uint amount; // amount bet by Bettor
     }
     struct coin_info{
-        uint total;
-        uint pre;
-        uint post;
-        uint count;
-        bool price_check;
+        uint total; // total coin pool
+        uint pre; // locking price
+        uint post; // ending price
+        uint count; // number of bets
+        bool price_check; // boolean: differentiating pre and post prices
     }
     struct reward_info {
-        uint amount;
-        bool rewarded;
+        uint amount; // reward amount
+        bool rewarded; // boolean: check for double spending
     }
-    /*mapping (address => info) voter;*/
-    mapping (bytes32 => bytes32) oraclizeIndex;
-    mapping (bytes32 => coin_info) coinIndex;
-    mapping (uint => user_info) voterIndex;
-    mapping (address => reward_info) rewardIndex;
 
-    uint public total_reward;
-    bytes32 public winner_horse;
-    uint public winner_reward;
+    mapping (bytes32 => bytes32) oraclizeIndex; // mapping oraclize IDs with coins
+    mapping (bytes32 => coin_info) coinIndex; // mapping coins with pool information
+    mapping (uint => user_info) voterIndex; // mapping voter count with Bettor information
+    mapping (address => reward_info) rewardIndex; // mapping Bettor address with their reward information
 
+    uint public total_reward; // total reward to be awarded
+    bytes32 public winner_horse; // winning coin
+    uint winner_reward; // reward for each user
+
+    // tracking events
     event newOraclizeQuery(string description);
     event newPriceTicker(uint price);
     event Deposit(address _from, uint256 _value);
     event Withdraw(address _to, uint256 _value);
 
+    // constructor
     function Betting() {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
         owner = msg.sender;
         oraclize_setCustomGasPrice(4000000000 wei);
-        starting_time = block.timestamp;
     }
 
+    // modifiers for restricting access to methods
     modifier onlyOwner {
         require(owner == msg.sender);
         _;
     }
 
     modifier lockBetting {
-        require(!race_start && betting_open);
-        _;
-    }
-
-    modifier startBets {
-        require(!race_start && !betting_open);
+        require(!race_start && betting_open &&!race_end);
         _;
     }
 
@@ -80,6 +104,7 @@ contract Betting is usingOraclize {
         _;
     }
 
+    //oraclize callback method
     function __callback(bytes32 myid, string result, bytes proof) {
         if (msg.sender != oraclize_cbAddress()) throw;
         race_start = true;
@@ -100,26 +125,30 @@ contract Betting is usingOraclize {
         }
     }
 
+    // place a bet on a coin(horse)
     function placeBet(bytes32 horse) external payable lockBetting {
         //TODO: min 0.1; max 1.0;
-        require(msg.value > 0.1 ether && msg.value < 1.0 ether);
+        require(msg.value >= 0.1 ether && msg.value <= 1.0 ether);
         voterIndex[voter_count].from = msg.sender;
         voterIndex[voter_count].amount = msg.value;
         voterIndex[voter_count].horse = horse;
         voter_count = voter_count + 1;
-        coinIndex[horse].total = coinIndex[horse].total + msg.value;
+        coinIndex[horse].total = (coinIndex[horse].total).add(msg.value);
         coinIndex[horse].count = coinIndex[horse].count + 1;
         Deposit(msg.sender, msg.value);
     }
 
+    // fallback method for accepting payments
     function () payable {
         Deposit(msg.sender, msg.value);
     }
 
-    function update(uint delay, uint betting_duration) onlyOwner payable {
+    // method to place the oraclize queries
+    function update(uint delay, uint  betting_duration) onlyOwner payable {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
+            starting_time = block.timestamp;
             betting_open = true;
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             // bets open price query
@@ -148,17 +177,21 @@ contract Betting is usingOraclize {
         }
     }
 
+    // method to calculate reward (called internally by callback)
     function reward() internal {
-        // calculating the difference in price with a precision of 5 digits
-
+        /*
+        calculating the difference in price with a precision of 5 digits
+        not using safemath since signed integers are handled
+        */
         BTC_delta = int(coinIndex[BTC].post - coinIndex[BTC].pre)*10000/int(coinIndex[BTC].pre);
         ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
         LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
-        total_reward = this.balance - treasury;
+        total_reward = this.balance - choke;
 
-        // book fee
-        uint house_fee = (total_reward*1)/100;
+        // house fee 1%
+//        uint house_fee = ((total_reward*1)/100);
+        uint house_fee = total_reward.mul(1).div(100);
         total_reward -= house_fee;
         owner.transfer(house_fee);
 
@@ -181,28 +214,36 @@ contract Betting is usingOraclize {
         race_end = true;
     }
 
+    // method to calculate an invidual's reward
     function calculate_reward(address candidate) afterRace constant {
+        uint i;
         if (!voided_bet) {
-            for (uint i=0; i<voter_count+1; i++) {
+            for (i=0; i<voter_count+1; i++) {
                 if (voterIndex[i].from == candidate && voterIndex[i].horse == winner_horse) {
-                    winner_reward = (((total_reward*10000)/coinIndex[winner_horse].total)*voterIndex[i].amount)/10000;
-                    rewardIndex[voterIndex[i].from].amount += winner_reward;
+//                    winner_reward = (((total_reward*10000)/coinIndex[winner_horse].total)*voterIndex[i].amount)/10000;
+                    winner_reward = (((total_reward.mul(10000)).div(coinIndex[winner_horse].total)).mul(voterIndex[i].amount)).div(10000);
+//                    rewardIndex[voterIndex[i].from].amount += winner_reward;
+                    rewardIndex[voterIndex[i].from].amount = (rewardIndex[voterIndex[i].from].amount).add(winner_reward);
                 }
             }
         } else {
-            for (uint i=0; i<voter_count+1; i++) {
+            for (i=0; i<voter_count+1; i++) {
                 if (voterIndex[i].from == candidate){
-                    rewardIndex[candidate] += voterIndex[i].amount;
+//                    rewardIndex[candidate].amount += voterIndex[i].amount;
+                    rewardIndex[candidate].amount = (rewardIndex[candidate].amount).add(voterIndex[i].amount);
                 }
             }
         }
     }
 
+    // method to just check the reward amount
     function check_reward() afterRace constant returns (uint) {
         require(!rewardIndex[msg.sender].rewarded);
         calculate_reward(msg.sender);
         return rewardIndex[msg.sender].amount;
     }
+
+    // method to claim the reward amount
     function claim_reward() afterRace {
         require(!rewardIndex[msg.sender].rewarded);
         calculate_reward(msg.sender);
@@ -212,6 +253,7 @@ contract Betting is usingOraclize {
         Withdraw(msg.sender, transfer_amount);
     }
 
+    // utility function to convert string to integer with precision consideration
     function stringToUintNormalize(string s) constant returns (uint result) {
         uint p =2;
         bool precision=false;
@@ -231,29 +273,36 @@ contract Betting is usingOraclize {
         }
     }
 
-    function treasury_gas() payable onlyOwner {
-        treasury += msg.value;
+    // method to func the contract with a kickstarter ether
+    function choke_gas() payable onlyOwner {
+        choke += msg.value;
         Deposit(owner,msg.value);
     }
-    function get_treasure() payable onlyOwner {
-        require(this.balance > treasury);
-        owner.transfer(treasury);
-        Withdraw(owner,treasury);
-    }
 
+    // exposing the coin pool details for DApp
     function getCoinIndex(bytes32 index) constant returns (uint, uint, uint, bool, uint) {
         return (coinIndex[index].total, coinIndex[index].pre, coinIndex[index].post, coinIndex[index].price_check, coinIndex[index].count);
     }
 
+    // exposing the total reward amount for DApp
     function reward_total() constant returns (uint) {
-        return (coinIndex[BTC].total + coinIndex[ETH].total + coinIndex[LTC].total);
+        return (coinIndex[BTC].total.add(coinIndex[ETH].total).add(coinIndex[LTC].total));
     }
 
+    // in case of any errors in race, enable full refund for the Bettors to claim
     function kill_refund() onlyOwner {
         require(race_start);
         require(!race_end);
-        require(block.timestamp > starting_time+race_duration);
+        require(now > starting_time+race_duration);
         voided_bet = true;
         race_end = true;
     }
+
+    // method to claim unclaimed winnings after 30 day notice period
+    function recovery() onlyOwner{
+        require(now > starting_time+30 days);
+        require(voided_bet &&  race_end);
+        owner.transfer(this.balance);
+    }
+
 }
