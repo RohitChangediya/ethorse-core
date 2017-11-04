@@ -47,6 +47,7 @@ contract Betting is usingOraclize {
     bool public voided_bet=false; //boolean: check if race has been voided
     uint choke = 0; // ethers to kickcstart the oraclize queries
     uint starting_time; // timestamp of when the race starts
+    uint public bet_duration;
     uint race_duration; // duration of the race
 
     struct user_info{
@@ -144,7 +145,7 @@ contract Betting is usingOraclize {
     }
 
     // method to place the oraclize queries
-    function update(uint delay, uint  betting_duration) onlyOwner payable {
+    function update(uint delay, uint  locking_duration) onlyOwner payable {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
@@ -163,7 +164,7 @@ contract Betting is usingOraclize {
             oraclizeIndex[temp_ID] = LTC;
 
             //bets closing price query
-            delay += betting_duration;
+            delay += locking_duration;
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",300000);
             oraclizeIndex[temp_ID] = BTC;
 
@@ -190,9 +191,9 @@ contract Betting is usingOraclize {
         total_reward = this.balance - choke;
 
         // house fee 1%
-//        uint house_fee = ((total_reward*1)/100);
         uint house_fee = total_reward.mul(1).div(100);
         total_reward -= house_fee;
+        require(this.balance > house_fee);
         owner.transfer(house_fee);
 
         if (BTC_delta > ETH_delta) {
@@ -220,16 +221,13 @@ contract Betting is usingOraclize {
         if (!voided_bet) {
             for (i=0; i<voter_count+1; i++) {
                 if (voterIndex[i].from == candidate && voterIndex[i].horse == winner_horse) {
-//                    winner_reward = (((total_reward*10000)/coinIndex[winner_horse].total)*voterIndex[i].amount)/10000;
                     winner_reward = (((total_reward.mul(10000)).div(coinIndex[winner_horse].total)).mul(voterIndex[i].amount)).div(10000);
-//                    rewardIndex[voterIndex[i].from].amount += winner_reward;
                     rewardIndex[voterIndex[i].from].amount = (rewardIndex[voterIndex[i].from].amount).add(winner_reward);
                 }
             }
         } else {
             for (i=0; i<voter_count+1; i++) {
                 if (voterIndex[i].from == candidate){
-//                    rewardIndex[candidate].amount += voterIndex[i].amount;
                     rewardIndex[candidate].amount = (rewardIndex[candidate].amount).add(voterIndex[i].amount);
                 }
             }
@@ -249,6 +247,7 @@ contract Betting is usingOraclize {
         calculate_reward(msg.sender);
         uint transfer_amount = rewardIndex[msg.sender].amount;
         rewardIndex[msg.sender].rewarded = true;
+        require(this.balance > tranfer_amount);
         msg.sender.transfer(transfer_amount);
         Withdraw(msg.sender, transfer_amount);
     }
