@@ -46,9 +46,9 @@ contract Betting is usingOraclize {
     bool public race_end=false; //boolean: check if race has ended
     bool public voided_bet=false; //boolean: check if race has been voided
     uint choke = 0; // ethers to kickcstart the oraclize queries
-    uint starting_time; // timestamp of when the race starts
-    uint public bet_duration;
-    uint race_duration; // duration of the race
+    uint public starting_time; // timestamp of when the race starts
+    uint public betting_duration;
+    uint public race_duration; // duration of the race
 
     struct user_info{
         address from; // address of Bettor
@@ -154,6 +154,7 @@ contract Betting is usingOraclize {
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             // bets open price query
             delay += 60;
+            betting_duration = delay;
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
             oraclizeIndex[temp_ID] = ETH;
 
@@ -247,7 +248,7 @@ contract Betting is usingOraclize {
         calculate_reward(msg.sender);
         uint transfer_amount = rewardIndex[msg.sender].amount;
         rewardIndex[msg.sender].rewarded = true;
-        require(this.balance > tranfer_amount);
+        require(this.balance > transfer_amount);
         msg.sender.transfer(transfer_amount);
         Withdraw(msg.sender, transfer_amount);
     }
@@ -300,8 +301,7 @@ contract Betting is usingOraclize {
     // method to claim unclaimed winnings after 30 day notice period
     function recovery() onlyOwner{
         require(now > starting_time+30 days);
-        require(voided_bet &&  race_end);
-        owner.transfer(this.balance);
+        require(voided_bet ||  race_end);
+        selfdestruct(owner);
     }
-
 }
