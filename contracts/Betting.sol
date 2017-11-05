@@ -128,7 +128,6 @@ contract Betting is usingOraclize {
 
     // place a bet on a coin(horse)
     function placeBet(bytes32 horse) external payable lockBetting {
-        //TODO: min 0.1; max 1.0;
         require(msg.value >= 0.1 ether && msg.value <= 1.0 ether);
         voterIndex[voter_count].from = msg.sender;
         voterIndex[voter_count].amount = msg.value;
@@ -189,6 +188,7 @@ contract Betting is usingOraclize {
         ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
         LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
+        //TODO: check underflow if no one bets
         total_reward = this.balance - choke;
 
         // house fee 1%
@@ -197,6 +197,7 @@ contract Betting is usingOraclize {
         require(this.balance > house_fee);
         owner.transfer(house_fee);
 
+        //TODO: if delta value of 2 coins are same, needs to be handled.
         if (BTC_delta > ETH_delta) {
             if (BTC_delta > LTC_delta) {
                 winner_horse = BTC;
