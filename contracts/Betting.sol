@@ -218,6 +218,8 @@ contract Betting is usingOraclize {
     }
 
     // method to calculate an invidual's reward
+    //TODO: rewamp how state changes are handles and rewards calculated
+    //TODO: rewamp the loop which requires every user to iterate though all the transactions.
     function calculate_reward(address candidate) afterRace constant {
         uint i;
         if (!voided_bet) {
@@ -291,6 +293,7 @@ contract Betting is usingOraclize {
     }
 
     // in case of any errors in race, enable full refund for the Bettors to claim
+    //TODO: try and include more scenarios where the refund should be possible
     function kill_refund() onlyOwner {
         require(race_start);
         require(!race_end);
