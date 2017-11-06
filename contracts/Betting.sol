@@ -105,7 +105,7 @@ contract Betting is usingOraclize {
 
     //oraclize callback method
     function __callback(bytes32 myid, string result, bytes proof) {
-        require (msg.sender != oraclize_cbAddress());
+        require (msg.sender == oraclize_cbAddress());
         race_start = true;
         betting_open = false;
         coin_pointer = oraclizeIndex[myid];
