@@ -28,7 +28,7 @@ library SafeMath {
 }
 
 contract Betting is usingOraclize {
-    using SafeMath for uint256;
+    using SafeMath for uint256; //using safemath
 
     bytes32 coin_pointer; // variable to differentiate different callbacks
     bytes32 temp_ID; // temp variable to store oraclize IDs
