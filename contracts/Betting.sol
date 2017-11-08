@@ -69,7 +69,6 @@ contract Betting is usingOraclize {
     mapping (bytes32 => bytes32) oraclizeIndex; // mapping oraclize IDs with coins
     mapping (bytes32 => coin_info) coinIndex; // mapping coins with pool information
     mapping (address => voter_info) voterIndex; // mapping voter address with Bettor information
-//    mapping (address => reward_info) rewardIndex; // mapping Bettor address with their reward information
 
     uint public total_reward; // total reward to be awarded
     bytes32 public winner_horse; // winning coin
