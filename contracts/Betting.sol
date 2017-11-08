@@ -30,7 +30,6 @@ library SafeMath {
 contract Betting is usingOraclize {
     using SafeMath for uint256;
 
-    uint public voter_count=0; //total number of Bettors
     bytes32 coin_pointer; // variable to differentiate different callbacks
     bytes32 temp_ID; // temp variable to store oraclize IDs
     uint countdown=3; // variable to check if all prices are received
@@ -50,8 +49,7 @@ contract Betting is usingOraclize {
     uint public betting_duration;
     uint public race_duration; // duration of the race
 
-    struct user_info{
-        address from; // address of Bettor
+    struct bet_info{
         bytes32 horse; // coin on which amount is bet on
         uint amount; // amount bet by Bettor
     }
@@ -62,19 +60,20 @@ contract Betting is usingOraclize {
         uint count; // number of bets
         bool price_check; // boolean: differentiating pre and post prices
     }
-    struct reward_info {
-        uint amount; // reward amount
+    struct voter_info {
+        uint bet_count; //number of bets
         bool rewarded; // boolean: check for double spending
+        bet_info[] bets; //array of bets
     }
 
     mapping (bytes32 => bytes32) oraclizeIndex; // mapping oraclize IDs with coins
     mapping (bytes32 => coin_info) coinIndex; // mapping coins with pool information
-    mapping (uint => user_info) voterIndex; // mapping voter count with Bettor information
-    mapping (address => reward_info) rewardIndex; // mapping Bettor address with their reward information
+    mapping (address => voter_info) voterIndex; // mapping voter address with Bettor information
+//    mapping (address => reward_info) rewardIndex; // mapping Bettor address with their reward information
 
     uint public total_reward; // total reward to be awarded
     bytes32 public winner_horse; // winning coin
-    uint winner_reward; // reward for each user
+
 
     // tracking events
     event newOraclizeQuery(string description);
@@ -107,7 +106,7 @@ contract Betting is usingOraclize {
 
     //oraclize callback method
     function __callback(bytes32 myid, string result, bytes proof) {
-        if (msg.sender != oraclize_cbAddress()) throw;
+        require (msg.sender != oraclize_cbAddress());
         race_start = true;
         betting_open = false;
         coin_pointer = oraclizeIndex[myid];
@@ -126,13 +125,14 @@ contract Betting is usingOraclize {
         }
     }
 
-    // place a bet on a coin(horse)
-    function placeBet(bytes32 horse) external payable lockBetting {
+    // place a bet on a coin(horse) lockBetting
+    function placeBet(bytes32 horse) external payable  {
         require(msg.value >= 0.1 ether && msg.value <= 1.0 ether);
-        voterIndex[voter_count].from = msg.sender;
-        voterIndex[voter_count].amount = msg.value;
-        voterIndex[voter_count].horse = horse;
-        voter_count = voter_count + 1;
+        bet_info memory current_bet;
+        current_bet.amount = msg.value;
+        current_bet.horse = horse;
+        voterIndex[msg.sender].bets.push(current_bet);
+        voterIndex[msg.sender].bet_count += 1;
         coinIndex[horse].total = (coinIndex[horse].total).add(msg.value);
         coinIndex[horse].count = coinIndex[horse].count + 1;
         Deposit(msg.sender, msg.value);
@@ -188,8 +188,7 @@ contract Betting is usingOraclize {
         ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
         LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
-        //TODO: check underflow if no one bets
-        total_reward = this.balance - choke;
+        total_reward = this.balance.sub(choke);
 
         // house fee 1%
         uint house_fee = total_reward.mul(1).div(100);
@@ -213,45 +212,39 @@ contract Betting is usingOraclize {
                 winner_horse = LTC;
             }
         }
-
         race_end = true;
     }
 
     // method to calculate an invidual's reward
-    //TODO: rewamp how state changes are handles and rewards calculated
-    //TODO: rewamp the loop which requires every user to iterate though all the transactions.
-    function calculate_reward(address candidate) afterRace constant {
+    function calculate_reward(address candidate) internal afterRace constant returns(uint winner_reward) {
         uint i;
+        voter_info bettor = voterIndex[candidate];
         if (!voided_bet) {
-            for (i=0; i<voter_count+1; i++) {
-                if (voterIndex[i].from == candidate && voterIndex[i].horse == winner_horse) {
-                    winner_reward = (((total_reward.mul(10000)).div(coinIndex[winner_horse].total)).mul(voterIndex[i].amount)).div(10000);
-                    rewardIndex[voterIndex[i].from].amount = (rewardIndex[voterIndex[i].from].amount).add(winner_reward);
+            for(i=0; i<bettor.bet_count; i++) {
+                if (bettor.bets[i].horse == winner_horse) {
+                    winner_reward += (((total_reward.mul(10000)).div(coinIndex[winner_horse].total)).mul(bettor.bets[i].amount)).div(10000);
                 }
             }
+
         } else {
-            for (i=0; i<voter_count+1; i++) {
-                if (voterIndex[i].from == candidate){
-                    rewardIndex[candidate].amount = (rewardIndex[candidate].amount).add(voterIndex[i].amount);
-                }
+            for(i=0; i<bettor.bet_count; i++) {
+                winner_reward += bettor.bets[i].amount;
             }
         }
     }
 
     // method to just check the reward amount
     function check_reward() afterRace constant returns (uint) {
-        require(!rewardIndex[msg.sender].rewarded);
-        calculate_reward(msg.sender);
-        return rewardIndex[msg.sender].amount;
+        require(!voterIndex[msg.sender].rewarded);
+        return calculate_reward(msg.sender);
     }
 
     // method to claim the reward amount
     function claim_reward() afterRace {
-        require(!rewardIndex[msg.sender].rewarded);
-        calculate_reward(msg.sender);
-        uint transfer_amount = rewardIndex[msg.sender].amount;
-        rewardIndex[msg.sender].rewarded = true;
+        require(!voterIndex[msg.sender].rewarded);
+        uint transfer_amount = calculate_reward(msg.sender);
         require(this.balance > transfer_amount);
+        voterIndex[msg.sender].rewarded = true;
         msg.sender.transfer(transfer_amount);
         Withdraw(msg.sender, transfer_amount);
     }
@@ -307,5 +300,14 @@ contract Betting is usingOraclize {
         require(now > starting_time+30 days);
         require(voided_bet ||  race_end);
         selfdestruct(owner);
+    }
+
+    function suicide() onlyOwner {
+        selfdestruct(owner);
+    }
+
+    function getVoterIndex() constant returns (uint, bytes32, uint) {
+        voter_info shit = voterIndex[msg.sender];
+        return (shit.bet_count, shit.bets[0].horse, shit.bets[0].amount);
     }
 }
