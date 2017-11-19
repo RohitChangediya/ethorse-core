@@ -6,3 +6,4 @@ Bet on a cryptocurrency and win against other bettors with Ethorse Smart Contrac
 - "Place bet" after entering an amount you are willing to bet (0.1-1 Ropsten ETH) from a browser with Metamask extension, or Mist.
 - Parimutuel Betting: Winner takes all (Fee 1%)
 - Price pulled from Coinmarketcap.com API through Oraclize.it at the beginning and end of the bet period
+- After bet closes, click “Check result” to see your winnings and “Claim” to submit a 0 ETH transaction that in turn sends your winnings.
