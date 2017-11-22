@@ -8,4 +8,5 @@ Bet on a cryptocurrency and win against other bettors with Ethorse Smart Contrac
 - Parimutuel Betting: Winner takes all (Fee 1%)
 - Price pulled from Coinmarketcap.com API through Oraclize.it at the beginning and end of the bet period
 - After bet closes, click “Check result” to see your winnings and “Claim” to submit a 0 ETH transaction that in turn sends your winnings.
-- Bet on a favorite to easily win a small payout because it only needs to beat lesser opponents. 
+
+Bet on a favorite to easily win a small payout because it only needs to beat lesser opponents. 
