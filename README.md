@@ -10,3 +10,4 @@ Bet on a cryptocurrency and win against other bettors with Ethorse Smart Contrac
 - After bet closes, click “Check result” to see your winnings and “Claim” to submit a 0 ETH transaction that in turn sends your winnings.
 
 Bet on a favorite to easily win a small payout because it only needs to beat lesser opponents. 
+Alternatively, bet on an underdog and win a huge payout. Tip: Use the Odds. Questions and feedback are welcome.
