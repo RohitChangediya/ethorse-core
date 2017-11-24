@@ -11,3 +11,5 @@ Bet on a cryptocurrency and win against other bettors with Ethorse Smart Contrac
 
 Bet on a favorite to easily win a small payout because it only needs to beat lesser opponents. 
 Alternatively, bet on an underdog and win a huge payout. Tip: Use the Odds. Questions and feedback are welcome.
+
+Link to open source smart contract code: 0x4524e8425760AF95DA970A066bd74092b36f6DB0
