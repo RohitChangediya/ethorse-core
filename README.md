@@ -2,7 +2,7 @@
 
 ## How to use
 
-Link to DAPP: [ethorse.github.io/Betting/](https://ethorse.github.io/Betting/) 
+Link to DAPP: [Ethorse](https://ethorse.github.io/Betting/) 
  
 Bet on a cryptocurrency and win against other bettors with Ethorse Smart Contract
 
