@@ -69,7 +69,6 @@ contract Betting is usingOraclize {
     mapping (bytes32 => bytes32) oraclizeIndex; // mapping oraclize IDs with coins
     mapping (bytes32 => coin_info) coinIndex; // mapping coins with pool information
     mapping (address => voter_info) voterIndex; // mapping voter address with Bettor information
-//    mapping (address => reward_info) rewardIndex; // mapping Bettor address with their reward information
 
     uint public total_reward; // total reward to be awarded
     bytes32 public winner_horse; // winning coin
@@ -106,7 +105,7 @@ contract Betting is usingOraclize {
 
     //oraclize callback method
     function __callback(bytes32 myid, string result, bytes proof) {
-        require (msg.sender != oraclize_cbAddress());
+        require (msg.sender == oraclize_cbAddress());
         race_start = true;
         betting_open = false;
         coin_pointer = oraclizeIndex[myid];
