@@ -1,31 +1,7 @@
 pragma solidity ^0.4.10;
-import "./usingOraclize.sol";
+import "./lib/usingOraclize.sol";
+import "./lib/SafeMath.sol";
 
-library SafeMath {
-  function mul(uint256 a, uint256 b) internal constant returns (uint256) {
-    uint256 c = a * b;
-    assert(a == 0 || c / a == b);
-    return c;
-  }
-
-  function div(uint256 a, uint256 b) internal constant returns (uint256) {
-    // assert(b > 0); // Solidity automatically throws when dividing by 0
-    uint256 c = a / b;
-    // assert(a == b * c + a % b); // There is no case in which this doesn't hold
-    return c;
-  }
-
-  function sub(uint256 a, uint256 b) internal constant returns (uint256) {
-    assert(b <= a);
-    return a - b;
-  }
-
-  function add(uint256 a, uint256 b) internal constant returns (uint256) {
-    uint256 c = a + b;
-    assert(c >= a);
-    return c;
-  }
-}
 
 contract Betting is usingOraclize {
     using SafeMath for uint256; //using safemath
@@ -48,6 +24,7 @@ contract Betting is usingOraclize {
     uint public starting_time; // timestamp of when the race starts
     uint public betting_duration;
     uint public race_duration; // duration of the race
+    uint public winningPoolTotal;
 
     struct bet_info{
         bytes32 horse; // coin on which amount is bet on
@@ -71,7 +48,8 @@ contract Betting is usingOraclize {
     mapping (address => voter_info) voterIndex; // mapping voter address with Bettor information
 
     uint public total_reward; // total reward to be awarded
-    bytes32 public winner_horse; // winning coin
+//    bytes32 public winner_horse; // winning coin
+    mapping (bytes32 => bool) winner_horse;
 
 
     // tracking events
@@ -198,30 +176,53 @@ contract Betting is usingOraclize {
         //TODO: if delta value of 2 coins are same, needs to be handled.
         if (BTC_delta > ETH_delta) {
             if (BTC_delta > LTC_delta) {
-                winner_horse = BTC;
+                winner_horse[BTC] = true;
+                winnerPoolTotal = coinIndex[BTC].total;
             }
-            else {
-                winner_horse = LTC;
+            else if(LTC_delta > BTC_delta) {
+                winner_horse[LTC] = true;
+                winnerPoolTotal = coinIndex[LTC].total;
+            } else {
+                winner_horse[BTC] = true;
+                winner_horse[LTC] = true;
+                winnerPoolTotal = coinIndex[BTC].total.add(coinIndex[LTC].total);
+            }
+        } else if(ETH_delta > BTC_delta) {
+            if (ETH_delta > LTC_delta) {
+                winner_horse[ETH] = true;
+                winnerPoolTotal = coinIndex[ETH].total;
+            }
+            else if (LTC_delta > ETH_delta) {
+                winner_horse[LTC] = true;
+                winnerPoolTotal = coinIndex[LTC].total;
+            } else {
+                winner_horse[ETH] = true;
+                winner_horse[LTC] = true;
+                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[LTC].total);
             }
         } else {
-            if (ETH_delta > LTC_delta) {
-                winner_horse = ETH;
-            }
-            else {
-                winner_horse = LTC;
-            }
+            winner_horse[ETH] = true;
+            winner_horse[BTC] = true;
+            winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total);
         }
         race_end = true;
     }
+    
+    // // method to get the total reward of all the winning coins
+    // function winnerPoolTotal() constant afterRace returns (uint) {
+    //     for(uint i=0; i<3; i++){
+            
+    //     }
+    // }
 
     // method to calculate an invidual's reward
-    function calculate_reward(address candidate) internal afterRace constant returns(uint winner_reward) {
+    function calculateReward(address candidate) internal afterRace constant returns(uint winner_reward) {
         uint i;
         voter_info bettor = voterIndex[candidate];
         if (!voided_bet) {
             for(i=0; i<bettor.bet_count; i++) {
                 if (bettor.bets[i].horse == winner_horse) {
-                    winner_reward += (((total_reward.mul(10000)).div(coinIndex[winner_horse].total)).mul(bettor.bets[i].amount)).div(10000);
+                    winner_reward += (((total_reward.mul(10000)).div(winnerPoolTotal)).mul(bettor.bets[i].amount)).div(10000);
                 }
             }
 
@@ -233,15 +234,15 @@ contract Betting is usingOraclize {
     }
 
     // method to just check the reward amount
-    function check_reward() afterRace constant returns (uint) {
+    function checkReward() afterRace constant returns (uint) {
         require(!voterIndex[msg.sender].rewarded);
-        return calculate_reward(msg.sender);
+        return calculateReward(msg.sender);
     }
 
     // method to claim the reward amount
     function claim_reward() afterRace {
         require(!voterIndex[msg.sender].rewarded);
-        uint transfer_amount = calculate_reward(msg.sender);
+        uint transfer_amount = calculateReward(msg.sender);
         require(this.balance > transfer_amount);
         voterIndex[msg.sender].rewarded = true;
         msg.sender.transfer(transfer_amount);
