@@ -171,7 +171,8 @@ contract Betting is usingOraclize {
         ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
         LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
-        total_reward = this.balance.sub(kickStarter);
+        // throws when no bets are placed. since oraclize will eat some ethers from the kickStarter and kickStarter will be > balance
+        total_reward = this.balance.sub(kickStarter); 
 
         // house fee 1%
         uint house_fee = total_reward.mul(1).div(100);
@@ -179,7 +180,6 @@ contract Betting is usingOraclize {
         require(this.balance > house_fee);
         owner.transfer(house_fee);
 
-        //TODO: if delta value of 2 coins are same, needs to be handled.
         if (BTC_delta > ETH_delta) {
             if (BTC_delta > LTC_delta) {
                 winner_horse[BTC] = true;
@@ -213,13 +213,6 @@ contract Betting is usingOraclize {
         }
         race_end = true;
     }
-    
-    // // method to get the total reward of all the winning coins
-    // function winnerPoolTotal() constant afterRace returns (uint) {
-    //     for(uint i=0; i<3; i++){
-            
-    //     }
-    // }
 
     // method to calculate an invidual's reward
     function calculateReward(address candidate) internal afterRace constant returns(uint winner_reward) {
