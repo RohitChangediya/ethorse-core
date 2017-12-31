@@ -291,7 +291,7 @@ contract Betting is usingOraclize {
 
     // method to claim unclaimed winnings after 30 day notice period
     function recovery() onlyOwner{
-        require(now > starting_time+30 days);
+        require(now > starting_time+race_duration+30 days);
         require(voided_bet ||  race_end);
         selfdestruct(owner);
     }
