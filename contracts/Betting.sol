@@ -20,7 +20,7 @@ contract Betting is usingOraclize {
     bool public race_start=false; //boolean: check if race has started
     bool public race_end=false; //boolean: check if race has ended
     bool public voided_bet=false; //boolean: check if race has been voided
-    uint choke = 0; // ethers to kickcstart the oraclize queries
+    uint kickStarter = 0; // ethers to kickcstart the oraclize queries
     uint public starting_time; // timestamp of when the race starts
     uint public betting_duration;
     uint public race_duration; // duration of the race
@@ -59,9 +59,10 @@ contract Betting is usingOraclize {
     event Withdraw(address _to, uint256 _value);
 
     // constructor
-    function Betting() {
+    function Betting() payable {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
         owner = msg.sender;
+        kickStarter.add(msg.value);
         oraclize_setCustomGasPrice(4000000000 wei);
     }
 
@@ -71,8 +72,13 @@ contract Betting is usingOraclize {
         _;
     }
 
-    modifier lockBetting {
-        require(!race_start && betting_open &&!race_end);
+    modifier duringBetting {
+        require(betting_open);
+        _;
+    }
+    
+    modifier beforeBetting {
+        require(!betting_open);
         _;
     }
 
@@ -103,15 +109,15 @@ contract Betting is usingOraclize {
     }
 
     // place a bet on a coin(horse) lockBetting
-    function placeBet(bytes32 horse) external payable  {
+    function placeBet(bytes32 horse) external duringBetting payable  {
         require(msg.value >= 0.1 ether && msg.value <= 1.0 ether);
         bet_info memory current_bet;
         current_bet.amount = msg.value;
         current_bet.horse = horse;
         voterIndex[msg.sender].bets.push(current_bet);
-        voterIndex[msg.sender].bet_count += 1;
+        voterIndex[msg.sender].bet_count.add(1);
         coinIndex[horse].total = (coinIndex[horse].total).add(msg.value);
-        coinIndex[horse].count = coinIndex[horse].count + 1;
+        coinIndex[horse].count = coinIndex[horse].count.add(1);
         Deposit(msg.sender, msg.value);
     }
 
@@ -121,7 +127,7 @@ contract Betting is usingOraclize {
     }
 
     // method to place the oraclize queries
-    function update(uint delay, uint  locking_duration) onlyOwner payable {
+    function update(uint delay, uint  locking_duration) onlyOwner beforeBetting payable {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
@@ -129,7 +135,7 @@ contract Betting is usingOraclize {
             betting_open = true;
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             // bets open price query
-            delay += 60;
+            delay = delay.add(60); //slack time 1 minute
             betting_duration = delay;
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
             oraclizeIndex[temp_ID] = ETH;
@@ -141,7 +147,7 @@ contract Betting is usingOraclize {
             oraclizeIndex[temp_ID] = LTC;
 
             //bets closing price query
-            delay += locking_duration;
+            delay.add(locking_duration);
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",300000);
             oraclizeIndex[temp_ID] = BTC;
 
@@ -165,11 +171,11 @@ contract Betting is usingOraclize {
         ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
         LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
 
-        total_reward = this.balance.sub(choke);
+        total_reward = this.balance.sub(kickStarter);
 
         // house fee 1%
         uint house_fee = total_reward.mul(1).div(100);
-        total_reward -= house_fee;
+        total_reward = total_reward.sub(house_fee);
         require(this.balance > house_fee);
         owner.transfer(house_fee);
 
@@ -269,11 +275,6 @@ contract Betting is usingOraclize {
         }
     }
 
-    // method to func the contract with a kickstarter ether
-    function choke_gas() payable onlyOwner {
-        choke += msg.value;
-        Deposit(owner,msg.value);
-    }
 
     // exposing the coin pool details for DApp
     function getCoinIndex(bytes32 index) constant returns (uint, uint, uint, bool, uint) {
