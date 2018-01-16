@@ -24,7 +24,7 @@ contract Betting is usingOraclize {
     uint public starting_time; // timestamp of when the race starts
     uint public betting_duration;
     uint public race_duration; // duration of the race
-    uint public winningPoolTotal;
+    uint public winnerPoolTotal;
 
     struct bet_info{
         bytes32 horse; // coin on which amount is bet on
@@ -174,8 +174,8 @@ contract Betting is usingOraclize {
         // throws when no bets are placed. since oraclize will eat some ethers from the kickStarter and kickStarter will be > balance
         total_reward = this.balance.sub(kickStarter); 
 
-        // house fee 1%
-        uint house_fee = total_reward.mul(1).div(100);
+        // house fee 5%
+        uint house_fee = total_reward.mul(5).div(100);
         total_reward = total_reward.sub(house_fee);
         require(this.balance > house_fee);
         owner.transfer(house_fee);
@@ -220,7 +220,7 @@ contract Betting is usingOraclize {
         voter_info bettor = voterIndex[candidate];
         if (!voided_bet) {
             for(i=0; i<bettor.bet_count; i++) {
-                if (bettor.bets[i].horse == winner_horse) {
+                if (winner_horse[bettor.bets[i].horse]) {
                     winner_reward += (((total_reward.mul(10000)).div(winnerPoolTotal)).mul(bettor.bets[i].amount)).div(10000);
                 }
             }
