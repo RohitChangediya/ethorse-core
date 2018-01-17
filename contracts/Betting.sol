@@ -127,7 +127,7 @@ contract Betting is usingOraclize {
     }
 
     // method to place the oraclize queries
-    function update(uint delay, uint  locking_duration) onlyOwner beforeBetting payable {
+    function setupRace(uint delay, uint  locking_duration) onlyOwner beforeBetting payable {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
