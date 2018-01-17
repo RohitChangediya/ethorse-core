@@ -1,10 +1,14 @@
 pragma solidity ^0.4.0;
 
-import "./Race.sol";
-import "./lib/usingOraclize.sol";
+import {Betting as Race, usingOraclize} from "./Betting.sol";
+// import "./lib/usingOraclize.sol";
+// import "github.com/oraclize/ethereum-api/oraclizeAPI.sol";
+
 
 contract BettingController is usingOraclize {
     address owner;
+    uint256 raceCounter;
+    
     enum raceStatusChoices { Waiting, Betting, Cooldown, Racing, RaceEnd }
     
     struct raceInfo {
@@ -20,7 +24,7 @@ contract BettingController is usingOraclize {
     
     function BettingController() public payable {
         owner = msg.sender;
-        update(0);
+        // update(0);
     }
     
     function () external payable{
@@ -30,21 +34,21 @@ contract BettingController is usingOraclize {
 
     function spawnRace() internal {
         Race race = new Race();
-        RaceDeployed(race, race.getOwner());
+        RaceDeployed(race, race.owner());
     }
     
     function __callback(bytes32 myid, string result, bytes proof) {
         require (msg.sender == oraclize_cbAddress());
         spawnRace();
-        update(60);
+        update(60,4000000);
     }
     
-    function update(uint delay) payable {
+    function update(uint delay, uint oraclizeGasLimit) payable {
         if (oraclize_getPrice("URL") > this.balance) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
-            oraclize_query(delay, "URL", "");
+            oraclize_query(delay, "URL", "", oraclizeGasLimit);
         }
     }
 }
