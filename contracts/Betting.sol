@@ -127,9 +127,10 @@ contract Betting is usingOraclize {
     }
 
     // method to place the oraclize queries
-    function setupRace(uint delay, uint  locking_duration) onlyOwner beforeBetting payable {
+    function setupRace(uint delay, uint  locking_duration) onlyOwner beforeBetting payable returns(bool) {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
+            return false;
         } else {
             starting_time = block.timestamp;
             betting_open = true;
@@ -158,6 +159,7 @@ contract Betting is usingOraclize {
             oraclizeIndex[temp_ID] = LTC;
 
             race_duration = delay;
+            return true;
         }
     }
 

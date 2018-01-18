@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.19;
 
 import {Betting as Race, usingOraclize} from "./Betting.sol";
 // import "./lib/usingOraclize.sol";
@@ -8,6 +8,7 @@ import {Betting as Race, usingOraclize} from "./Betting.sol";
 contract BettingController is usingOraclize {
     address owner;
     uint256 raceCounter;
+    Race race;
     
     enum raceStatusChoices { Waiting, Betting, Cooldown, Racing, RaceEnd }
     
@@ -32,8 +33,9 @@ contract BettingController is usingOraclize {
         HouseFeeDeposit(msg.sender, msg.value);
     }
 
-    function spawnRace() internal {
-        Race race = new Race();
+    function spawnRace() {
+        race = (new Race).value(0.1 ether)();
+        assert(race.setupRace(60,60));
         RaceDeployed(race, race.owner());
     }
     
