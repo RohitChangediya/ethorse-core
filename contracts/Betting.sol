@@ -179,6 +179,7 @@ contract Betting is usingOraclize {
         // house fee 5%
         uint house_fee = total_reward.mul(5).div(100);
         total_reward = total_reward.sub(house_fee);
+        house_fee = house_fee.add(kickStarter);
         require(this.balance > house_fee);
         owner.transfer(house_fee);
 
@@ -209,9 +210,19 @@ contract Betting is usingOraclize {
                 winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[LTC].total);
             }
         } else {
-            winner_horse[ETH] = true;
-            winner_horse[BTC] = true;
-            winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total);
+            if (LTC_delta > ETH_delta) {
+                winner_horse[LTC] = true;
+                winnerPoolTotal = coinIndex[LTC].total;
+            } else if(LTC_delta < ETH_delta){
+                winner_horse[ETH] = true;
+                winner_horse[BTC] = true;
+                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total);
+            } else {
+                winner_horse[LTC] = true;
+                winner_horse[ETH] = true;
+                winner_horse[BTC] = true;
+                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total).add(coinIndex[LTC].total);
+            }
         }
         race_end = true;
     }

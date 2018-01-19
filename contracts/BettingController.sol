@@ -1,8 +1,6 @@
 pragma solidity ^0.4.19;
 
 import {Betting as Race, usingOraclize} from "./Betting.sol";
-// import "./lib/usingOraclize.sol";
-// import "github.com/oraclize/ethereum-api/oraclizeAPI.sol";
 
 
 contract BettingController is usingOraclize {
