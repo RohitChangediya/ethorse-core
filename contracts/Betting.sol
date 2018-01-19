@@ -127,9 +127,10 @@ contract Betting is usingOraclize {
     }
 
     // method to place the oraclize queries
-    function setupRace(uint delay, uint  locking_duration) onlyOwner beforeBetting payable {
+    function setupRace(uint delay, uint  locking_duration) onlyOwner beforeBetting payable returns(bool) {
         if (oraclize_getPrice("URL") > (this.balance)/6) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
+            return false;
         } else {
             starting_time = block.timestamp;
             betting_open = true;
@@ -158,6 +159,7 @@ contract Betting is usingOraclize {
             oraclizeIndex[temp_ID] = LTC;
 
             race_duration = delay;
+            return true;
         }
     }
 
@@ -177,6 +179,7 @@ contract Betting is usingOraclize {
         // house fee 5%
         uint house_fee = total_reward.mul(5).div(100);
         total_reward = total_reward.sub(house_fee);
+        house_fee = house_fee.add(kickStarter);
         require(this.balance > house_fee);
         owner.transfer(house_fee);
 
@@ -207,9 +210,19 @@ contract Betting is usingOraclize {
                 winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[LTC].total);
             }
         } else {
-            winner_horse[ETH] = true;
-            winner_horse[BTC] = true;
-            winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total);
+            if (LTC_delta > ETH_delta) {
+                winner_horse[LTC] = true;
+                winnerPoolTotal = coinIndex[LTC].total;
+            } else if(LTC_delta < ETH_delta){
+                winner_horse[ETH] = true;
+                winner_horse[BTC] = true;
+                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total);
+            } else {
+                winner_horse[LTC] = true;
+                winner_horse[ETH] = true;
+                winner_horse[BTC] = true;
+                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total).add(coinIndex[LTC].total);
+            }
         }
         race_end = true;
     }
