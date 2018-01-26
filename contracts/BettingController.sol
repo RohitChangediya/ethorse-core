@@ -1,14 +1,15 @@
 pragma solidity ^0.4.19;
 
 import {Betting as Race, usingOraclize} from "./Betting.sol";
-
+ 
 
 contract BettingController is usingOraclize {
     address owner;
+    bool paused;
     uint256 raceCounter;
     Race race;
     
-    enum raceStatusChoices { Waiting, Betting, Cooldown, Racing, RaceEnd }
+    enum raceStatusChoices { Betting, Cooldown, Racing, RaceEnd, Aborted }
     
     struct raceInfo {
         uint256 spawnTime;
@@ -16,14 +17,27 @@ contract BettingController is usingOraclize {
     }
     
     mapping (address => raceInfo) raceIndex;
-    event RaceDeployed(address _race, address _owner);
+    event RaceDeployed(address indexed _address, address _owner, uint256 indexed _time);
     event HouseFeeDeposit(address _race, uint256 _value);
     event newOraclizeQuery(string description);
+    event AddFund(uint256 _value);
 
+    modifier onlyOwmner {
+        require(msg.sender == owner);
+        _;
+    }
+    
+    modifier whenNotPaused {
+        require(!paused);
+        _;
+    }
     
     function BettingController() public payable {
         owner = msg.sender;
-        // update(0);
+    }
+    
+    function addFunds() external onlyOwmner payable {
+        AddFund(msg.value);
     }
     
     function () external payable{
@@ -31,10 +45,13 @@ contract BettingController is usingOraclize {
         HouseFeeDeposit(msg.sender, msg.value);
     }
 
-    function spawnRace() {
+    function spawnRace() whenNotPaused {
+        // require(!paused);
         race = (new Race).value(0.1 ether)();
+        raceIndex[race].raceStatus = raceStatusChoices.Betting;
+        raceIndex[race].spawnTime = now;
         assert(race.setupRace(60,60));
-        RaceDeployed(race, race.owner());
+        RaceDeployed(race, race.owner(), now);
     }
     
     function __callback(bytes32 myid, string result, bytes proof) {
@@ -50,5 +67,9 @@ contract BettingController is usingOraclize {
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             oraclize_query(delay, "URL", "", oraclizeGasLimit);
         }
+    }
+    
+    function raceSpawnSwitch(bool _status) external onlyOwmner {
+        paused=_status;
     }
 }
