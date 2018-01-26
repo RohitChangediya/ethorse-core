@@ -2,7 +2,6 @@ pragma solidity ^0.4.10;
 import "./lib/usingOraclize.sol";
 import "./lib/SafeMath.sol";
 
-
 contract Betting is usingOraclize {
     using SafeMath for uint256; //using safemath
 
@@ -10,21 +9,29 @@ contract Betting is usingOraclize {
     bytes32 temp_ID; // temp variable to store oraclize IDs
     uint countdown=3; // variable to check if all prices are received
     address public owner; //owner address
-    int public BTC_delta; //BTC delta value
-    int public ETH_delta; //ETH delta value
-    int public LTC_delta; //LTC delta value
-    bytes32 public BTC=bytes32("BTC"); //32-bytes equivalent of BTC
-    bytes32 public ETH=bytes32("ETH"); //32-bytes equivalent of ETH
-    bytes32 public LTC=bytes32("LTC"); //32-bytes equivalent of LTC
-    bool public betting_open=false; // boolean: check if betting is open
-    bool public race_start=false; //boolean: check if race has started
-    bool public race_end=false; //boolean: check if race has ended
-    bool public voided_bet=false; //boolean: check if race has been voided
     uint kickStarter = 0; // ethers to kickcstart the oraclize queries
-    uint public starting_time; // timestamp of when the race starts
-    uint public betting_duration;
-    uint public race_duration; // duration of the race
+    
     uint public winnerPoolTotal;
+    string public constant version = "0.2.0";
+    
+    struct chronus_struct {
+        bool  betting_open; // boolean: check if betting is open
+        bool  race_start; //boolean: check if race has started
+        bool  race_end; //boolean: check if race has ended
+        bool  voided_bet; //boolean: check if race has been voided
+        uint  starting_time; // timestamp of when the race starts
+        uint  betting_duration;
+        uint  race_duration; // duration of the race
+    }
+    
+    struct horses_struct{
+        int  BTC_delta; //horses.BTC delta value
+        int  ETH_delta; //horses.ETH delta value
+        int  LTC_delta; //horses.LTC delta value
+        bytes32 BTC; //32-bytes equivalent of horses.BTC
+        bytes32 ETH; //32-bytes equivalent of horses.ETH
+        bytes32 LTC;  //32-bytes equivalent of horses.LTC
+    }
 
     struct bet_info{
         bytes32 horse; // coin on which amount is bet on
@@ -64,8 +71,15 @@ contract Betting is usingOraclize {
         owner = msg.sender;
         kickStarter.add(msg.value);
         oraclize_setCustomGasPrice(4000000000 wei);
+        horses.BTC = bytes32("BTC");
+        horses.ETH = bytes32("ETH");
+        horses.LTC = bytes32("LTC");
     }
 
+    // data access structures
+    horses_struct horses;
+    chronus_struct chronus;
+    
     // modifiers for restricting access to methods
     modifier onlyOwner {
         require(owner == msg.sender);
@@ -73,25 +87,25 @@ contract Betting is usingOraclize {
     }
 
     modifier duringBetting {
-        require(betting_open);
+        require(chronus.betting_open);
         _;
     }
     
     modifier beforeBetting {
-        require(!betting_open);
+        require(!chronus.betting_open);
         _;
     }
 
     modifier afterRace {
-        require(race_end);
+        require(chronus.race_end);
         _;
     }
 
     //oraclize callback method
     function __callback(bytes32 myid, string result, bytes proof) {
         require (msg.sender == oraclize_cbAddress());
-        race_start = true;
-        betting_open = false;
+        chronus.race_start = true;
+        chronus.betting_open = false;
         coin_pointer = oraclizeIndex[myid];
 
         if (coinIndex[coin_pointer].price_check != true) {
@@ -122,9 +136,7 @@ contract Betting is usingOraclize {
     }
 
     // fallback method for accepting payments
-    function () payable {
-        Deposit(msg.sender, msg.value);
-    }
+    function () private payable {}
 
     // method to place the oraclize queries
     function setupRace(uint delay, uint  locking_duration) onlyOwner beforeBetting payable returns(bool) {
@@ -132,33 +144,33 @@ contract Betting is usingOraclize {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
             return false;
         } else {
-            starting_time = block.timestamp;
-            betting_open = true;
+            chronus.starting_time = block.timestamp;
+            chronus.betting_open = true;
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             // bets open price query
             delay = delay.add(60); //slack time 1 minute
-            betting_duration = delay;
+            chronus.betting_duration = delay;
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
-            oraclizeIndex[temp_ID] = ETH;
+            oraclizeIndex[temp_ID] = horses.ETH;
 
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
-            oraclizeIndex[temp_ID] = BTC;
+            oraclizeIndex[temp_ID] = horses.BTC;
 
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
-            oraclizeIndex[temp_ID] = LTC;
+            oraclizeIndex[temp_ID] = horses.LTC;
 
             //bets closing price query
             delay.add(locking_duration);
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",300000);
-            oraclizeIndex[temp_ID] = BTC;
+            oraclizeIndex[temp_ID] = horses.BTC;
 
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",300000);
-            oraclizeIndex[temp_ID] = ETH;
+            oraclizeIndex[temp_ID] = horses.ETH;
 
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd",300000);
-            oraclizeIndex[temp_ID] = LTC;
+            oraclizeIndex[temp_ID] = horses.LTC;
 
-            race_duration = delay;
+            chronus.race_duration = delay;
             return true;
         }
     }
@@ -169,9 +181,9 @@ contract Betting is usingOraclize {
         calculating the difference in price with a precision of 5 digits
         not using safemath since signed integers are handled
         */
-        BTC_delta = int(coinIndex[BTC].post - coinIndex[BTC].pre)*10000/int(coinIndex[BTC].pre);
-        ETH_delta = int(coinIndex[ETH].post - coinIndex[ETH].pre)*10000/int(coinIndex[ETH].pre);
-        LTC_delta = int(coinIndex[LTC].post - coinIndex[LTC].pre)*10000/int(coinIndex[LTC].pre);
+        horses.BTC_delta = int(coinIndex[horses.BTC].post - coinIndex[horses.BTC].pre)*10000/int(coinIndex[horses.BTC].pre);
+        horses.ETH_delta = int(coinIndex[horses.ETH].post - coinIndex[horses.ETH].pre)*10000/int(coinIndex[horses.ETH].pre);
+        horses.LTC_delta = int(coinIndex[horses.LTC].post - coinIndex[horses.LTC].pre)*10000/int(coinIndex[horses.LTC].pre);
 
         // throws when no bets are placed. since oraclize will eat some ethers from the kickStarter and kickStarter will be > balance
         total_reward = this.balance.sub(kickStarter); 
@@ -183,55 +195,55 @@ contract Betting is usingOraclize {
         require(this.balance > house_fee);
         owner.transfer(house_fee);
 
-        if (BTC_delta > ETH_delta) {
-            if (BTC_delta > LTC_delta) {
-                winner_horse[BTC] = true;
-                winnerPoolTotal = coinIndex[BTC].total;
+        if (horses.BTC_delta > horses.ETH_delta) {
+            if (horses.BTC_delta > horses.LTC_delta) {
+                winner_horse[horses.BTC] = true;
+                winnerPoolTotal = coinIndex[horses.BTC].total;
             }
-            else if(LTC_delta > BTC_delta) {
-                winner_horse[LTC] = true;
-                winnerPoolTotal = coinIndex[LTC].total;
+            else if(horses.LTC_delta > horses.BTC_delta) {
+                winner_horse[horses.LTC] = true;
+                winnerPoolTotal = coinIndex[horses.LTC].total;
             } else {
-                winner_horse[BTC] = true;
-                winner_horse[LTC] = true;
-                winnerPoolTotal = coinIndex[BTC].total.add(coinIndex[LTC].total);
+                winner_horse[horses.BTC] = true;
+                winner_horse[horses.LTC] = true;
+                winnerPoolTotal = coinIndex[horses.BTC].total.add(coinIndex[horses.LTC].total);
             }
-        } else if(ETH_delta > BTC_delta) {
-            if (ETH_delta > LTC_delta) {
-                winner_horse[ETH] = true;
-                winnerPoolTotal = coinIndex[ETH].total;
+        } else if(horses.ETH_delta > horses.BTC_delta) {
+            if (horses.ETH_delta > horses.LTC_delta) {
+                winner_horse[horses.ETH] = true;
+                winnerPoolTotal = coinIndex[horses.ETH].total;
             }
-            else if (LTC_delta > ETH_delta) {
-                winner_horse[LTC] = true;
-                winnerPoolTotal = coinIndex[LTC].total;
+            else if (horses.LTC_delta > horses.ETH_delta) {
+                winner_horse[horses.LTC] = true;
+                winnerPoolTotal = coinIndex[horses.LTC].total;
             } else {
-                winner_horse[ETH] = true;
-                winner_horse[LTC] = true;
-                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[LTC].total);
+                winner_horse[horses.ETH] = true;
+                winner_horse[horses.LTC] = true;
+                winnerPoolTotal = coinIndex[horses.ETH].total.add(coinIndex[horses.LTC].total);
             }
         } else {
-            if (LTC_delta > ETH_delta) {
-                winner_horse[LTC] = true;
-                winnerPoolTotal = coinIndex[LTC].total;
-            } else if(LTC_delta < ETH_delta){
-                winner_horse[ETH] = true;
-                winner_horse[BTC] = true;
-                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total);
+            if (horses.LTC_delta > horses.ETH_delta) {
+                winner_horse[horses.LTC] = true;
+                winnerPoolTotal = coinIndex[horses.LTC].total;
+            } else if(horses.LTC_delta < horses.ETH_delta){
+                winner_horse[horses.ETH] = true;
+                winner_horse[horses.BTC] = true;
+                winnerPoolTotal = coinIndex[horses.ETH].total.add(coinIndex[horses.BTC].total);
             } else {
-                winner_horse[LTC] = true;
-                winner_horse[ETH] = true;
-                winner_horse[BTC] = true;
-                winnerPoolTotal = coinIndex[ETH].total.add(coinIndex[BTC].total).add(coinIndex[LTC].total);
+                winner_horse[horses.LTC] = true;
+                winner_horse[horses.ETH] = true;
+                winner_horse[horses.BTC] = true;
+                winnerPoolTotal = coinIndex[horses.ETH].total.add(coinIndex[horses.BTC].total).add(coinIndex[horses.LTC].total);
             }
         }
-        race_end = true;
+        chronus.race_end = true;
     }
 
     // method to calculate an invidual's reward
     function calculateReward(address candidate) internal afterRace constant returns(uint winner_reward) {
         uint i;
         voter_info bettor = voterIndex[candidate];
-        if (!voided_bet) {
+        if (!chronus.voided_bet) {
             for(i=0; i<bettor.bet_count; i++) {
                 if (winner_horse[bettor.bets[i].horse]) {
                     winner_reward += (((total_reward.mul(10000)).div(winnerPoolTotal)).mul(bettor.bets[i].amount)).div(10000);
@@ -289,23 +301,22 @@ contract Betting is usingOraclize {
 
     // exposing the total reward amount for DApp
     function reward_total() constant returns (uint) {
-        return (coinIndex[BTC].total.add(coinIndex[ETH].total).add(coinIndex[LTC].total));
+        return (coinIndex[horses.BTC].total.add(coinIndex[horses.ETH].total).add(coinIndex[horses.LTC].total));
     }
 
     // in case of any errors in race, enable full refund for the Bettors to claim
-    //TODO: try and include more scenarios where the refund should be possible
     function kill_refund() onlyOwner {
-        require(race_start);
-        require(!race_end);
-        require(now > starting_time+race_duration);
-        voided_bet = true;
-        race_end = true;
+        require(now > chronus.starting_time+chronus.race_duration);
+        require((chronus.betting_open && !chronus.race_start)
+            || (chronus.race_start && !chronus.race_end));
+        chronus.voided_bet = true;
+        chronus.race_end = true;
     }
 
     // method to claim unclaimed winnings after 30 day notice period
     function recovery() onlyOwner{
-        require(now > starting_time+race_duration+30 days);
-        require(voided_bet ||  race_end);
+        require(now > chronus.starting_time+chronus.race_duration+30 days);
+        require(chronus.voided_bet ||  chronus.race_end);
         selfdestruct(owner);
     }
 
