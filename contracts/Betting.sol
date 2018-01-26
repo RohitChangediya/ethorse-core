@@ -321,7 +321,7 @@ contract Betting is usingOraclize {
     }
 
     function getVoterIndex() constant returns (uint, bytes32, uint) {
-        voter_info shit = voterIndex[msg.sender];
-        return (shit.bet_count, shit.bets[0].horse, shit.bets[0].amount);
+        voter_info voterInfoTemp = voterIndex[msg.sender];
+        return (voterInfoTemp.bet_count, voterInfoTemp.bets[0].horse, voterInfoTemp.bets[0].amount);
     }
 }
