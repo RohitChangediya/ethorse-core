@@ -317,7 +317,6 @@ contract Betting is usingOraclize {
     function recovery() onlyOwner{
         require(now > chronus.starting_time+chronus.race_duration+30 days);
         require(chronus.voided_bet ||  chronus.race_end);
-        // selfdestruct(owner);
         owner.transfer(this.balance);
     }
 
