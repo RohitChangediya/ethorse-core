@@ -17,7 +17,7 @@ contract BettingController is usingOraclize {
     }
     
     mapping (address => raceInfo) raceIndex;
-    event RaceDeployed(address indexed _address, address _owner, uint256 indexed _time);
+    event RaceDeployed(address _address, address _owner, uint256 _time);
     event HouseFeeDeposit(address _race, uint256 _value);
     event newOraclizeQuery(string description);
     event AddFund(uint256 _value);
@@ -51,21 +51,22 @@ contract BettingController is usingOraclize {
         raceIndex[race].raceStatus = raceStatusChoices.Betting;
         raceIndex[race].spawnTime = now;
         assert(race.setupRace(60,60));
-        RaceDeployed(race, race.owner(), now);
+        RaceDeployed(address(race), race.owner(), now);
     }
     
     function __callback(bytes32 myid, string result, bytes proof) {
         require (msg.sender == oraclize_cbAddress());
         spawnRace();
-        update(60,4000000);
+        update(4000000);
     }
     
-    function update(uint delay, uint oraclizeGasLimit) payable {
+    function update( uint oraclizeGasLimit) payable {
         if (oraclize_getPrice("URL") > this.balance) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
             newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
-            oraclize_query(delay, "URL", "", oraclizeGasLimit);
+            oraclize_query(0, "URL", "", oraclizeGasLimit);
+            oraclize_query(30 days, "URL", "", oraclizeGasLimit);
         }
     }
     
