@@ -1,5 +1,7 @@
 pragma solidity ^0.4.10;
 import "./lib/usingOraclize.sol";
+
+// import "github.com/oraclize/ethereum-api/oraclizeAPI.sol";
 import "./lib/SafeMath.sol";
 
 contract Betting is usingOraclize {
@@ -14,7 +16,7 @@ contract Betting is usingOraclize {
     uint public winnerPoolTotal;
     string public constant version = "0.2.0";
     
-    struct chronus_struct {
+    struct chronus_info {
         bool  betting_open; // boolean: check if betting is open
         bool  race_start; //boolean: check if race has started
         bool  race_end; //boolean: check if race has ended
@@ -24,13 +26,14 @@ contract Betting is usingOraclize {
         uint  race_duration; // duration of the race
     }
     
-    struct horses_struct{
+    struct horses_info{
         int  BTC_delta; //horses.BTC delta value
         int  ETH_delta; //horses.ETH delta value
         int  LTC_delta; //horses.LTC delta value
         bytes32 BTC; //32-bytes equivalent of horses.BTC
         bytes32 ETH; //32-bytes equivalent of horses.ETH
         bytes32 LTC;  //32-bytes equivalent of horses.LTC
+        uint customGasLimit;
     }
 
     struct bet_info{
@@ -49,6 +52,11 @@ contract Betting is usingOraclize {
         bool rewarded; // boolean: check for double spending
         bet_info[] bets; //array of bets
     }
+    
+    // struct oracle_info {
+    //     bytes32 pointer;
+    //     string 
+    // }
 
     mapping (bytes32 => bytes32) oraclizeIndex; // mapping oraclize IDs with coins
     mapping (bytes32 => coin_info) coinIndex; // mapping coins with pool information
@@ -70,15 +78,16 @@ contract Betting is usingOraclize {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
         owner = msg.sender;
         kickStarter.add(msg.value);
-        oraclize_setCustomGasPrice(4000000000 wei);
+        oraclize_setCustomGasPrice(10000000000 wei);
         horses.BTC = bytes32("BTC");
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
+        horses.customGasLimit = 500000;
     }
 
     // data access structures
-    horses_struct horses;
-    chronus_struct chronus;
+    horses_info horses;
+    chronus_info public chronus;
     
     // modifiers for restricting access to methods
     modifier onlyOwner {
@@ -92,7 +101,7 @@ contract Betting is usingOraclize {
     }
     
     modifier beforeBetting {
-        require(!chronus.betting_open);
+        // require(!chronus.betting_open);
         _;
     }
 
@@ -150,24 +159,27 @@ contract Betting is usingOraclize {
             // bets open price query
             delay = delay.add(60); //slack time 1 minute
             chronus.betting_duration = delay;
-            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
+            // temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",);
+            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/ETH-USD/ticker).price",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.ETH;
-
-            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
-            oraclizeIndex[temp_ID] = horses.BTC;
-
-            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
+            
+            // temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
+            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/LTC-USD/ticker).price",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.LTC;
+
+            // temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
+            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/BTC-USD/ticker).price",horses.customGasLimit);
+            oraclizeIndex[temp_ID] = horses.BTC;
 
             //bets closing price query
             delay.add(locking_duration);
-            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",300000);
+            temp_ID = oraclize_query(delay, "URL", "jjson(https://api.gdax.com/products/BTC-USD/ticker).price",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.BTC;
 
-            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",300000);
+            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/ETH-USD/ticker).price",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.ETH;
 
-            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd",300000);
+            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/LTC-USD/ticker).price",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.LTC;
 
             chronus.race_duration = delay;
