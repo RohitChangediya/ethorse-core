@@ -1,7 +1,5 @@
 pragma solidity ^0.4.10;
 import "./lib/usingOraclize.sol";
-
-// import "github.com/oraclize/ethereum-api/oraclizeAPI.sol";
 import "./lib/SafeMath.sol";
 
 contract Betting is usingOraclize {
@@ -53,17 +51,12 @@ contract Betting is usingOraclize {
         bet_info[] bets; //array of bets
     }
     
-    // struct oracle_info {
-    //     bytes32 pointer;
-    //     string 
-    // }
 
     mapping (bytes32 => bytes32) oraclizeIndex; // mapping oraclize IDs with coins
     mapping (bytes32 => coin_info) coinIndex; // mapping coins with pool information
     mapping (address => voter_info) voterIndex; // mapping voter address with Bettor information
 
     uint public total_reward; // total reward to be awarded
-//    bytes32 public winner_horse; // winning coin
     mapping (bytes32 => bool) winner_horse;
 
 
@@ -101,7 +94,7 @@ contract Betting is usingOraclize {
     }
     
     modifier beforeBetting {
-        // require(!chronus.betting_open);
+        require(!chronus.betting_open && !chronus.race_start);
         _;
     }
 
@@ -159,29 +152,27 @@ contract Betting is usingOraclize {
             // bets open price query
             delay = delay.add(60); //slack time 1 minute
             chronus.betting_duration = delay;
-            // temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",);
-            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/ETH-USD/ticker).price",horses.customGasLimit);
+            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
             oraclizeIndex[temp_ID] = horses.ETH;
             
-            // temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
-            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/LTC-USD/ticker).price",horses.customGasLimit);
+            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
             oraclizeIndex[temp_ID] = horses.LTC;
 
-            // temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
-            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/BTC-USD/ticker).price",horses.customGasLimit);
+            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd");
             oraclizeIndex[temp_ID] = horses.BTC;
 
             //bets closing price query
             delay.add(locking_duration);
-            temp_ID = oraclize_query(delay, "URL", "jjson(https://api.gdax.com/products/BTC-USD/ticker).price",horses.customGasLimit);
-            oraclizeIndex[temp_ID] = horses.BTC;
-
-            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/ETH-USD/ticker).price",horses.customGasLimit);
+            
+            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.ETH;
-
-            temp_ID = oraclize_query(delay, "URL", "json(https://api.gdax.com/products/LTC-USD/ticker).price",horses.customGasLimit);
+            
+            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.LTC;
 
+            temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",horses.customGasLimit);
+            oraclizeIndex[temp_ID] = horses.BTC;
+            
             chronus.race_duration = delay;
             return true;
         }
@@ -316,9 +307,14 @@ contract Betting is usingOraclize {
         return (coinIndex[horses.BTC].total.add(coinIndex[horses.ETH].total).add(coinIndex[horses.LTC].total));
     }
 
+    function getVoterIndex() constant returns (uint, bytes32, uint) {
+        voter_info voterInfoTemp = voterIndex[msg.sender];
+        return (voterInfoTemp.bet_count, voterInfoTemp.bets[0].horse, voterInfoTemp.bets[0].amount);
+    }
+    
     // in case of any errors in race, enable full refund for the Bettors to claim
-    function kill_refund() onlyOwner {
-        require(now > chronus.starting_time+chronus.race_duration);
+    function refund() onlyOwner {
+        require(now > chronus.starting_time.add(chronus.race_duration));
         require((chronus.betting_open && !chronus.race_start)
             || (chronus.race_start && !chronus.race_end));
         chronus.voided_bet = true;
@@ -327,13 +323,8 @@ contract Betting is usingOraclize {
 
     // method to claim unclaimed winnings after 30 day notice period
     function recovery() onlyOwner{
-        require(now > chronus.starting_time+chronus.race_duration+30 days);
+        require(now > chronus.starting_time.add(chronus.race_duration).add(30 days));
         require(chronus.voided_bet ||  chronus.race_end);
         owner.transfer(this.balance);
-    }
-
-    function getVoterIndex() constant returns (uint, bytes32, uint) {
-        voter_info voterInfoTemp = voterIndex[msg.sender];
-        return (voterInfoTemp.bet_count, voterInfoTemp.bets[0].horse, voterInfoTemp.bets[0].amount);
     }
 }
