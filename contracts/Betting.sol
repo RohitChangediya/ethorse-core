@@ -57,7 +57,7 @@ contract Betting is usingOraclize {
     mapping (address => voter_info) voterIndex; // mapping voter address with Bettor information
 
     uint public total_reward; // total reward to be awarded
-    mapping (bytes32 => bool) winner_horse;
+    mapping (bytes32 => bool) public winner_horse;
 
 
     // tracking events
@@ -162,7 +162,7 @@ contract Betting is usingOraclize {
             oraclizeIndex[temp_ID] = horses.BTC;
 
             //bets closing price query
-            delay.add(locking_duration);
+            delay = delay.add(locking_duration);
             
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.ETH;
