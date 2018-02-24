@@ -33,7 +33,7 @@ contract BettingController is usingOraclize {
     event newOraclizeQuery(string description);
     event AddFund(uint256 _value);
 
-    modifier onlyOwmner {
+    modifier onlyOwner {
         require(msg.sender == owner);
         _;
     }
@@ -48,7 +48,7 @@ contract BettingController is usingOraclize {
         oraclizeGasLimit = 4000000;
     }
     
-    function addFunds() external onlyOwmner payable {
+    function addFunds() external onlyOwner payable {
         AddFund(msg.value);
     }
     
@@ -82,7 +82,7 @@ contract BettingController is usingOraclize {
         }
     }
     
-    function raceController(uint256 delay, uint256 _bettingDuration, uint256 _raceDuration) payable returns(bytes32){
+    function raceController(uint256 delay, uint256 _bettingDuration, uint256 _raceDuration) onlyOwner payable returns(bytes32){
         if (oraclize_getPrice("URL") > this.balance) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
@@ -95,7 +95,7 @@ contract BettingController is usingOraclize {
         }
     }
     
-    function recoveryController(uint256 delay) payable returns(bytes32){
+    function recoveryController(uint256 delay) internal payable returns(bytes32){
         if (oraclize_getPrice("URL") > this.balance) {
             newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
@@ -106,18 +106,19 @@ contract BettingController is usingOraclize {
         }
     }
     
-    function enableRefund(address _race) onlyOwmner {
+    function enableRefund(address _race) onlyOwner {
         Race raceInstance = Race(_race);
         raceInstance.refund();
     }
     
-    function raceSpawnSwitch(bool _status) external onlyOwmner {
+    function raceSpawnSwitch(bool _status) external onlyOwner {
         paused=_status;
     }
     /*
     @dev this method is used only for development purpose and won't be there in production
     */
-    function kill() onlyOwmner {
+    function kill() onlyOwner {
         selfdestruct(owner);
     }
+
 }
