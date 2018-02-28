@@ -1,4 +1,4 @@
-pragma solidity ^0.4.10;
+pragma solidity ^0.4.20;
 import "./lib/usingOraclize.sol";
 import "./lib/SafeMath.sol";
 
@@ -9,7 +9,7 @@ contract Betting is usingOraclize {
     bytes32 temp_ID; // temp variable to store oraclize IDs
     uint countdown=3; // variable to check if all prices are received
     address public owner; //owner address
-    uint kickStarter = 0; // ethers to kickcstart the oraclize queries
+    uint public kickStarter = 0; // ethers to kickcstart the oraclize queries
     
     uint public winnerPoolTotal;
     string public constant version = "0.2.0";
@@ -70,16 +70,16 @@ contract Betting is usingOraclize {
     function Betting() payable {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
         owner = msg.sender;
-        kickStarter.add(msg.value);
-        oraclize_setCustomGasPrice(10000000000 wei);
+        kickStarter = kickStarter.add(msg.value);
+        // oraclize_setCustomGasPrice(10000000000 wei);
         horses.BTC = bytes32("BTC");
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
-        horses.customGasLimit = 500000;
+        horses.customGasLimit = 300000;
     }
 
     // data access structures
-    horses_info horses;
+    horses_info public horses;
     chronus_info public chronus;
     
     // modifiers for restricting access to methods
@@ -110,11 +110,11 @@ contract Betting is usingOraclize {
         chronus.betting_open = false;
         coin_pointer = oraclizeIndex[myid];
 
-        if (coinIndex[coin_pointer].price_check != true) {
+        if (!coinIndex[coin_pointer].price_check) {
             coinIndex[coin_pointer].pre = stringToUintNormalize(result);
             coinIndex[coin_pointer].price_check = true;
             newPriceTicker(coinIndex[coin_pointer].pre);
-        } else if (coinIndex[coin_pointer].price_check == true){
+        } else if (coinIndex[coin_pointer].price_check){
             coinIndex[coin_pointer].post = stringToUintNormalize(result);
             newPriceTicker(coinIndex[coin_pointer].post);
             countdown = countdown - 1;
@@ -126,12 +126,12 @@ contract Betting is usingOraclize {
 
     // place a bet on a coin(horse) lockBetting
     function placeBet(bytes32 horse) external duringBetting payable  {
-        require(msg.value >= 0.1 ether && msg.value <= 1.0 ether);
+        require(msg.value >= 0.01 ether);
         bet_info memory current_bet;
         current_bet.amount = msg.value;
         current_bet.horse = horse;
         voterIndex[msg.sender].bets.push(current_bet);
-        voterIndex[msg.sender].bet_count.add(1);
+        voterIndex[msg.sender].bet_count = voterIndex[msg.sender].bet_count.add(1);
         coinIndex[horse].total = (coinIndex[horse].total).add(msg.value);
         coinIndex[horse].count = coinIndex[horse].count.add(1);
         Deposit(msg.sender, msg.value);
@@ -154,7 +154,7 @@ contract Betting is usingOraclize {
             chronus.betting_duration = delay;
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd");
             oraclizeIndex[temp_ID] = horses.ETH;
-            
+
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd");
             oraclizeIndex[temp_ID] = horses.LTC;
 
@@ -163,16 +163,16 @@ contract Betting is usingOraclize {
 
             //bets closing price query
             delay = delay.add(locking_duration);
-            
+
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/ethereum/).0.price_usd",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.ETH;
-            
+
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/litecoin/).0.price_usd",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.LTC;
 
             temp_ID = oraclize_query(delay, "URL", "json(http://api.coinmarketcap.com/v1/ticker/bitcoin/).0.price_usd",horses.customGasLimit);
             oraclizeIndex[temp_ID] = horses.BTC;
-            
+
             chronus.race_duration = delay;
             return true;
         }
@@ -187,17 +187,14 @@ contract Betting is usingOraclize {
         horses.BTC_delta = int(coinIndex[horses.BTC].post - coinIndex[horses.BTC].pre)*10000/int(coinIndex[horses.BTC].pre);
         horses.ETH_delta = int(coinIndex[horses.ETH].post - coinIndex[horses.ETH].pre)*10000/int(coinIndex[horses.ETH].pre);
         horses.LTC_delta = int(coinIndex[horses.LTC].post - coinIndex[horses.LTC].pre)*10000/int(coinIndex[horses.LTC].pre);
-
-        // throws when no bets are placed. since oraclize will eat some ethers from the kickStarter and kickStarter will be > balance
-        total_reward = this.balance.sub(kickStarter); 
-
-        // house fee 5%
+        
+        total_reward = coinIndex[horses.BTC].total.add(coinIndex[horses.ETH].total).add(coinIndex[horses.LTC].total);
         uint house_fee = total_reward.mul(5).div(100);
-        total_reward = total_reward.sub(house_fee);
-        house_fee = house_fee.add(kickStarter);
-        require(this.balance > house_fee);
+        // house_fee = house_fee.add(kickStarter);
+        require(house_fee < this.balance);
+        total_reward = total_reward.sub(house_fee); 
         owner.transfer(house_fee);
-
+        
         if (horses.BTC_delta > horses.ETH_delta) {
             if (horses.BTC_delta > horses.LTC_delta) {
                 winner_horse[horses.BTC] = true;
@@ -249,7 +246,7 @@ contract Betting is usingOraclize {
         if (!chronus.voided_bet) {
             for(i=0; i<bettor.bet_count; i++) {
                 if (winner_horse[bettor.bets[i].horse]) {
-                    winner_reward += (((total_reward.mul(10000)).div(winnerPoolTotal)).mul(bettor.bets[i].amount)).div(10000);
+                    winner_reward += (((total_reward.mul(10000000)).div(winnerPoolTotal)).mul(bettor.bets[i].amount)).div(10000000);
                 }
             }
 
@@ -284,11 +281,11 @@ contract Betting is usingOraclize {
         uint i;
         result = 0;
         for (i = 0; i < b.length; i++) {
-            if (precision == true) {p = p-1;}
+            if (precision) {p = p-1;}
             if (uint(b[i]) == 46){precision = true;}
             uint c = uint(b[i]);
             if (c >= 48 && c <= 57) {result = result * 10 + (c - 48);}
-            if (precision==true && p == 0){return result;}
+            if (precision && p == 0){return result;}
         }
         while (p!=0) {
             result = result*10;
