@@ -12,7 +12,7 @@ contract Betting is usingOraclize {
     uint public kickStarter = 0; // ethers to kickcstart the oraclize queries
     
     uint public winnerPoolTotal;
-    string public constant version = "0.2.0";
+    string public constant version = "0.2.1.beta";
     
     struct chronus_info {
         bool  betting_open; // boolean: check if betting is open
@@ -22,6 +22,7 @@ contract Betting is usingOraclize {
         uint  starting_time; // timestamp of when the race starts
         uint  betting_duration;
         uint  race_duration; // duration of the race
+        uint voided_timestamp;
     }
     
     struct horses_info{
@@ -316,12 +317,13 @@ contract Betting is usingOraclize {
             || (chronus.race_start && !chronus.race_end));
         chronus.voided_bet = true;
         chronus.race_end = true;
+        chronus.voided_timestamp=now;
     }
 
     // method to claim unclaimed winnings after 30 day notice period
     function recovery() onlyOwner{
-        require(now > chronus.starting_time.add(chronus.race_duration).add(30 days));
-        require(chronus.voided_bet ||  chronus.race_end);
+        require((chronus.race_end && now > chronus.starting_time.add(chronus.race_duration).add(30 days))
+            || (chronus.voided_bet && now > chronus.voided_timestamp.add(30 days)));
         owner.transfer(this.balance);
     }
 }

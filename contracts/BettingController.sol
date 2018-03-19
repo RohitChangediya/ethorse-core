@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity ^0.4.20;
 
 import {Betting as Race, usingOraclize} from "./Betting.sol";
 
@@ -128,5 +128,10 @@ contract BettingController is usingOraclize {
     
     function raceSpawnSwitch(bool _status) external onlyOwner {
         paused=_status;
+    }
+    
+    function extractFund(uint256 _amount) external onlyOwner {
+        require(_amount < this.balance);
+        owner.transfer(_amount);
     }
 }
