@@ -4,6 +4,7 @@ import {Betting as Race, usingOraclize} from "./Betting.sol";
 
 contract BettingController is usingOraclize {
     address owner;
+    address house_takeout = 0xf783A81F046448c38f3c863885D9e99D10209779;
     bool public paused;
     uint256 oraclizeGasLimit;
     uint256 raceKickstarter;
@@ -34,6 +35,7 @@ contract BettingController is usingOraclize {
     event HouseFeeDeposit(address indexed _race, uint256 _value);
     event newOraclizeQuery(string description);
     event AddFund(uint256 _value);
+    event RemoteBettingCloseInfo(address _race);
 
     modifier onlyOwner {
         require(msg.sender == owner);
@@ -48,17 +50,22 @@ contract BettingController is usingOraclize {
     function BettingController() public payable {
         owner = msg.sender;
         oraclizeGasLimit = 4000000;
-        raceKickstarter = 0.1 ether;
+        raceKickstarter = 0.05 ether;
         recoveryDuration = 30 days;
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
     }
     
     function addFunds() external onlyOwner payable {
-        AddFund(msg.value);
+        emit AddFund(msg.value);
     }
     
-    function () external payable{
-        HouseFeeDeposit(msg.sender, msg.value);
+    function remoteBettingClose() external {
+        emit RemoteBettingCloseInfo(msg.sender);
+    }
+    
+    function depositHouseTakeout() external payable{
+        house_takeout.transfer(msg.value);
+        emit HouseFeeDeposit(msg.sender, msg.value);
     }
 
     function spawnRace(uint256 _bettingDuration, uint256 _raceDuration) internal whenNotPaused {
@@ -70,13 +77,13 @@ contract BettingController is usingOraclize {
         raceIndex[race].bettingDuration = _bettingDuration;
         raceIndex[race].raceDuration = _raceDuration;
         assert(race.setupRace(_bettingDuration,_raceDuration));
-        RaceDeployed(address(race), race.owner(), _bettingDuration, _raceDuration, now);
+        emit RaceDeployed(address(race), race.owner(), _bettingDuration, _raceDuration, now);
         oracleRecoveryQueryId=recoveryController(recoveryDuration);
         recoveryIndex[oracleRecoveryQueryId].raceContract = address(race);
         recoveryIndex[oracleRecoveryQueryId].recoveryNeeded = true;
     }
     
-    function __callback(bytes32 oracleQueryId, string result, bytes proof) {
+    function __callback(bytes32 oracleQueryId, string result, bytes proof) public {
         require (msg.sender == oraclize_cbAddress());
         if (recoveryIndex[oracleQueryId].recoveryNeeded) {
             Race(address(recoveryIndex[oracleQueryId].raceContract)).recovery();
@@ -88,26 +95,26 @@ contract BettingController is usingOraclize {
     }
     
     function raceController(uint256 _delay, uint256 _bettingDuration, uint256 _raceDuration) internal returns(bytes32){
-        if (oraclize_getPrice("URL") > this.balance) {
-            newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
+        if (oraclize_getPrice("URL") > address(this).balance) {
+            emit newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
             bytes32 oracleQueryId; 
             oracleQueryId = oraclize_query(_delay, "URL", "", oraclizeGasLimit);
             oracleIndex[oracleQueryId].bettingDuration = _bettingDuration;
             oracleIndex[oracleQueryId].raceDuration = _raceDuration;
             oracleIndex[oracleQueryId].delay = _delay;
-            newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
+            emit newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             return oracleQueryId;
         }
     }
     
     function recoveryController(uint256 delay) internal returns(bytes32){
-        if (oraclize_getPrice("URL") > this.balance) {
-            newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
+        if (oraclize_getPrice("URL") > address(this).balance) {
+            emit newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
             bytes32 oracleRecoveryQueryId; 
             oracleRecoveryQueryId = oraclize_query(delay, "URL", "", oraclizeGasLimit);
-            newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
+            emit newOraclizeQuery("Oraclize query was sent, standing by for the answer..");
             return oracleRecoveryQueryId;
         }
     }
@@ -126,12 +133,31 @@ contract BettingController is usingOraclize {
         raceInstance.refund();
     }
     
+    function manualRecovery(address _race) external onlyOwner {
+        Race raceInstance = Race(_race);
+        raceInstance.recovery();
+    }
+    
+    function changeRaceOwnership(address _race, address _newOwner) external onlyOwner {
+        Race raceInstance = Race(_race);
+        raceInstance.changeOwnership(_newOwner);
+    }
+    
+    function changeHouseTakeout(address _newHouseTakeout) external onlyOwner {
+        require(house_takeout != _newHouseTakeout);
+        house_takeout = _newHouseTakeout;
+    }
+    
     function raceSpawnSwitch(bool _status) external onlyOwner {
         paused=_status;
     }
     
     function extractFund(uint256 _amount) external onlyOwner {
-        require(_amount < this.balance);
-        owner.transfer(_amount);
+        if (_amount == 0) {
+            owner.transfer(address(this).balance);
+        } else {
+            require(_amount <= address(this).balance);
+            owner.transfer(_amount);   
+        }
     }
 }
