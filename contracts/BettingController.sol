@@ -23,6 +23,7 @@ contract BettingController is usingOraclize {
     }
     
     struct oraclizeIndexInfo {
+        bool deployed;
         uint256 delay;
         uint256 bettingDuration;
         uint256 raceDuration;
@@ -49,8 +50,9 @@ contract BettingController is usingOraclize {
     
     function BettingController() public payable {
         owner = msg.sender;
-        oraclizeGasLimit = 4000000;
-        raceKickstarter = 0.05 ether;
+        oraclizeGasLimit = 3500000;
+        oraclize_setCustomGasPrice(10000000000 wei);
+        raceKickstarter = 0.02 ether;
         recoveryDuration = 30 days;
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
     }
@@ -89,6 +91,8 @@ contract BettingController is usingOraclize {
             Race(address(recoveryIndex[oracleQueryId].raceContract)).recovery();
             recoveryIndex[oracleQueryId].recoveryNeeded = false;
         } else {
+            require(!oracleIndex[oracleQueryId].deployed);
+            oracleIndex[oracleQueryId].deployed = true;
             spawnRace(oracleIndex[oracleQueryId].bettingDuration,oracleIndex[oracleQueryId].raceDuration);
             raceController(oracleIndex[oracleQueryId].delay, oracleIndex[oracleQueryId].bettingDuration,oracleIndex[oracleQueryId].raceDuration); 
         }
@@ -98,7 +102,7 @@ contract BettingController is usingOraclize {
         if (oraclize_getPrice("URL") > address(this).balance) {
             emit newOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
         } else {
-            bytes32 oracleQueryId; 
+            bytes32 oracleQueryId;
             oracleQueryId = oraclize_query(_delay, "URL", "", oraclizeGasLimit);
             oracleIndex[oracleQueryId].bettingDuration = _bettingDuration;
             oracleIndex[oracleQueryId].raceDuration = _raceDuration;
@@ -120,8 +124,9 @@ contract BettingController is usingOraclize {
     }
     
     function initiateRaceSpawning(uint256 _delay, uint256 _bettingDuration, uint256 _raceDuration) external onlyOwner {
+        uint delay = _delay - 15 minutes; //decreasing delay to prevent delay in race deployment.
         spawnRace(_bettingDuration,_raceDuration);
-        raceController(_delay, _bettingDuration, _raceDuration);
+        raceController(delay, _bettingDuration, _raceDuration);
     }
     
     function spawnRaceManual(uint256 _bettingDuration, uint256 _raceDuration) external onlyOwner {
