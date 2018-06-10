@@ -51,9 +51,9 @@ contract BettingController is usingOraclize {
     function BettingController() public payable {
         owner = msg.sender;
         oraclizeGasLimit = 3500000;
-        oraclize_setCustomGasPrice(10000000000 wei);
-        raceKickstarter = 0.02 ether;
-        recoveryDuration = 30 days;
+        oraclize_setCustomGasPrice(15000000000 wei);
+        raceKickstarter = 0.03 ether;
+        recoveryDuration = 32 days;
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
     }
     
@@ -80,23 +80,23 @@ contract BettingController is usingOraclize {
         raceIndex[race].raceDuration = _raceDuration;
         assert(race.setupRace(_bettingDuration,_raceDuration));
         emit RaceDeployed(address(race), race.owner(), _bettingDuration, _raceDuration, now);
-        oracleRecoveryQueryId=recoveryController(recoveryDuration);
-        recoveryIndex[oracleRecoveryQueryId].raceContract = address(race);
+        // oracleRecoveryQueryId=recoveryController(recoveryDuration);
+        // recoveryIndex[oracleRecoveryQueryId].raceContract = address(race);
         recoveryIndex[oracleRecoveryQueryId].recoveryNeeded = true;
     }
     
-    function __callback(bytes32 oracleQueryId, string result, bytes proof) public {
-        require (msg.sender == oraclize_cbAddress());
-        if (recoveryIndex[oracleQueryId].recoveryNeeded) {
-            Race(address(recoveryIndex[oracleQueryId].raceContract)).recovery();
-            recoveryIndex[oracleQueryId].recoveryNeeded = false;
-        } else {
-            require(!oracleIndex[oracleQueryId].deployed);
-            oracleIndex[oracleQueryId].deployed = true;
-            spawnRace(oracleIndex[oracleQueryId].bettingDuration,oracleIndex[oracleQueryId].raceDuration);
-            raceController(oracleIndex[oracleQueryId].delay, oracleIndex[oracleQueryId].bettingDuration,oracleIndex[oracleQueryId].raceDuration); 
-        }
-    }
+    // function __callback(bytes32 oracleQueryId, string result, bytes proof) public {
+    //     require (msg.sender == oraclize_cbAddress());
+    //     if (recoveryIndex[oracleQueryId].recoveryNeeded) {
+    //         Race(address(recoveryIndex[oracleQueryId].raceContract)).recovery();
+    //         recoveryIndex[oracleQueryId].recoveryNeeded = false;
+    //     } else {
+    //         require(!oracleIndex[oracleQueryId].deployed);
+    //         oracleIndex[oracleQueryId].deployed = true;
+    //         spawnRace(oracleIndex[oracleQueryId].bettingDuration,oracleIndex[oracleQueryId].raceDuration);
+    //         raceController(oracleIndex[oracleQueryId].delay, oracleIndex[oracleQueryId].bettingDuration,oracleIndex[oracleQueryId].raceDuration); 
+    //     }
+    // }
     
     function raceController(uint256 _delay, uint256 _bettingDuration, uint256 _raceDuration) internal returns(bytes32){
         if (oraclize_getPrice("URL") > address(this).balance) {
@@ -151,6 +151,11 @@ contract BettingController is usingOraclize {
     function changeHouseTakeout(address _newHouseTakeout) external onlyOwner {
         require(house_takeout != _newHouseTakeout);
         house_takeout = _newHouseTakeout;
+    }
+    
+    function changeOraclizeGasPrice(uint256 _newGasPrice) external onlyOwner {
+        uint256 newGasPrice = _newGasPrice*1000000000 wei;
+        oraclize_setCustomGasPrice(newGasPrice);
     }
     
     function raceSpawnSwitch(bool _status) external onlyOwner {

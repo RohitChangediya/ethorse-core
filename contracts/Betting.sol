@@ -79,7 +79,7 @@ contract Betting is usingOraclize {
     function Betting() public payable {
         oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
         owner = msg.sender;
-        // oraclize_setCustomGasPrice(10000000000 wei);
+        oraclize_setCustomGasPrice(30000000000 wei);
         horses.BTC = bytes32("BTC");
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
@@ -100,6 +100,7 @@ contract Betting is usingOraclize {
 
     modifier duringBetting {
         require(chronus.betting_open);
+        require(now < chronus.starting_time + chronus.betting_duration);
         _;
     }
     
