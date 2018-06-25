@@ -131,7 +131,7 @@ contract Betting is usingOraclize {
 
         if (myid == coinIndex[coin_pointer].preOraclizeId) {
             if (coinIndex[coin_pointer].pre > 0) {
-            } else if (now >= chronus.starting_time+chronus.betting_duration+ 30 minutes) {
+            } else if (now >= chronus.starting_time+chronus.betting_duration+ 60 minutes) {
                 forceVoidRace();
             } else {
                 coinIndex[coin_pointer].pre = stringToUintNormalize(result);
@@ -140,7 +140,7 @@ contract Betting is usingOraclize {
         } else if (myid == coinIndex[coin_pointer].postOraclizeId){
             if (coinIndex[coin_pointer].pre > 0 ){
                 if (coinIndex[coin_pointer].post > 0) {
-                } else if (now >= chronus.starting_time+chronus.race_duration+ 30 minutes) {
+                } else if (now >= chronus.starting_time+chronus.race_duration+ 60 minutes) {
                     forceVoidRace();
                 } else {
                     coinIndex[coin_pointer].post = stringToUintNormalize(result);
