@@ -60,3 +60,6 @@ typings/
 .env
 .idea/*
 build/
+
+# DS Store
+*DS_Store
