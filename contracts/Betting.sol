@@ -1,15 +1,19 @@
-pragma solidity ^0.4.20;
+pragma solidity ^0.5.2;
 import "./lib/SafeMath.sol";
 
+interface P3DTakeout {
+    function buyTokens() external payable;
+}
 
 contract Betting{
     using SafeMath for uint256; //using safemath
 
     address public owner; //owner address
-    address house_takeout = 0xf783A81F046448c38f3c863885D9e99D10209779;
+    address payable house_takeout = 0xf783A81F046448c38f3c863885D9e99D10209779;
+    P3DTakeout P3DContract_;
 
     uint public winnerPoolTotal;
-    string public constant version = "0.2.3";
+    string public constant version = "0.2.4";
 
     struct chronus_info {
         bool  betting_open; // boolean: check if betting is open
@@ -71,6 +75,7 @@ contract Betting{
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
         
+        P3DContract_ = P3DTakeout(0x72b2670e55139934D6445348DC6EaB4089B12576);
     }
 
     // data access structures
@@ -101,6 +106,7 @@ contract Betting{
 
     //function to change owner
     function changeOwnership(address _newOwner) onlyOwner external {
+        require(now > chronus.starting_time + chronus.race_duration + 60 minutes);
         owner = _newOwner;
     }
 
@@ -152,9 +158,6 @@ contract Betting{
         emit Deposit(msg.sender, msg.value, horse, now);
     }
 
-    // fallback method for accepting payments
-    function () private payable {}
-
     // method to place the oraclize queries
     function setupRace(uint32 _bettingDuration, uint32 _raceDuration) onlyOwner beforeBetting external payable {
             chronus.starting_time = uint32(block.timestamp);
@@ -178,10 +181,17 @@ contract Betting{
             emit RefundEnabled("Not enough participants");
             forceVoidRace();
         } else {
+            // house takeout
             uint house_fee = total_reward.mul(5).div(100);
             require(house_fee < address(this).balance);
             total_reward = total_reward.sub(house_fee);
             house_takeout.transfer(house_fee);
+            
+            // p3d takeout
+            uint p3d_fee = house_fee/2;
+            require(p3d_fee < address(this).balance);
+            total_reward = total_reward.sub(p3d_fee);
+            P3DContract_.buyTokens.value(p3d_fee)();
         }
 
         if (horses.BTC_delta > horses.ETH_delta) {
@@ -229,7 +239,7 @@ contract Betting{
     }
 
     // method to calculate an invidual's reward
-    function calculateReward(address candidate) internal afterRace constant returns(uint winner_reward) {
+    function calculateReward(address candidate) internal afterRace view returns(uint winner_reward) {
         voter_info storage bettor = voterIndex[candidate];
         if(chronus.voided_bet) {
             winner_reward = bettor.total_bet;
@@ -247,7 +257,7 @@ contract Betting{
     }
 
     // method to just check the reward amount
-    function checkReward() afterRace external constant returns (uint) {
+    function checkReward() afterRace external view returns (uint) {
         require(!voterIndex[msg.sender].rewarded);
         return calculateReward(msg.sender);
     }
@@ -263,13 +273,20 @@ contract Betting{
     }
 
     function forceVoidRace() internal {
+        require(!chronus.voided_bet);
         chronus.voided_bet=true;
         chronus.race_end = true;
         chronus.voided_timestamp=uint32(now);
     }
+    
+    //this methohd can only be called by controller contract in case of timestamp errors
+    function forceVoidExternal() external onlyOwner {
+        forceVoidRace();
+        emit RefundEnabled("Inaccurate price timestamp");
+    }
 
     // exposing the coin pool details for DApp
-    function getCoinIndex(bytes32 index, address candidate) external constant returns (uint, uint, uint, bool, uint) {
+    function getCoinIndex(bytes32 index, address candidate) external view returns (uint, uint, uint, bool, uint) {
         uint256 coinPrePrice;
         uint256 coinPostPrice;
         if (coinIndex[horses.ETH].pre > 0 && coinIndex[horses.BTC].pre > 0 && coinIndex[horses.LTC].pre > 0) {
@@ -282,13 +299,22 @@ contract Betting{
     }
 
     // exposing the total reward amount for DApp
-    function reward_total() external constant returns (uint) {
+    function reward_total() external view returns (uint) {
         return ((coinIndex[horses.BTC].total) + (coinIndex[horses.ETH].total) + (coinIndex[horses.LTC].total));
+    }
+    
+    function getChronus() external view returns (uint32[] memory) {
+        uint32[] memory chronusData = new uint32[](3);
+        chronusData[0] = chronus.starting_time;
+        chronusData[1] = chronus.betting_duration;
+        chronusData[2] = chronus.race_duration;
+        return (chronusData);
+        // return (chronus.starting_time, chronus.betting_duration ,chronus.race_duration);
     }
 
     // in case of any errors in race, enable full refund for the Bettors to claim
     function refund() external onlyOwner {
-        require(now > chronus.starting_time + chronus.race_duration);
+        require(now > chronus.starting_time + chronus.race_duration + 60 minutes);
         require((chronus.betting_open && !chronus.race_start)
             || (chronus.race_start && !chronus.race_end));
         chronus.voided_bet = true;
