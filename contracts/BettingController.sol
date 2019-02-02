@@ -54,7 +54,7 @@ contract oraclizeController is usingOraclize {
     }
     
     // utility function to convert string to integer with precision consideration
-    function stringToUintNormalize(string memory s) public pure returns (uint result) {
+    function stringToUintNormalize(string memory s) internal pure returns (uint result) {
         uint p =2;
         bool precision=false;
         bytes memory b = bytes(s);

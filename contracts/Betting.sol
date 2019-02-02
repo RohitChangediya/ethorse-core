@@ -1,19 +1,15 @@
 pragma solidity ^0.5.2;
 import "./lib/SafeMath.sol";
 
-interface P3DTakeout {
-    function buyTokens() external payable;
-}
-
 contract Betting{
     using SafeMath for uint256; //using safemath
 
     address public owner; //owner address
     address payable house_takeout = 0xf783A81F046448c38f3c863885D9e99D10209779;
-    P3DTakeout P3DContract_;
+    address payable mle_takeout = 0xAcBC1971AF62f42EE1eD89bc79308828e6b044f1;
 
     uint public winnerPoolTotal;
-    string public constant version = "0.2.4";
+    string public constant version = "0.2.5";
 
     struct chronus_info {
         bool  betting_open; // boolean: check if betting is open
@@ -75,7 +71,6 @@ contract Betting{
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
         
-        P3DContract_ = P3DTakeout(0x72b2670e55139934D6445348DC6EaB4089B12576);
     }
 
     // data access structures
@@ -188,10 +183,10 @@ contract Betting{
             house_takeout.transfer(house_fee);
             
             // p3d takeout
-            uint p3d_fee = house_fee/2;
-            require(p3d_fee < address(this).balance);
-            total_reward = total_reward.sub(p3d_fee);
-            P3DContract_.buyTokens.value(p3d_fee)();
+            uint mle_fee = house_fee/2;
+            require(mle_fee < address(this).balance);
+            total_reward = total_reward.sub(mle_fee);
+            mle_takeout.transfer(mle_fee);
         }
 
         if (horses.BTC_delta > horses.ETH_delta) {
