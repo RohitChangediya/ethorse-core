@@ -1,4 +1,4 @@
-pragma solidity ^0.4.20;
+pragma solidity ^0.5.2;
 
 import {Betting as Race} from "./Betting.sol";
 import "./lib/usingOraclize.sol";
@@ -37,8 +37,8 @@ contract oraclizeController is usingOraclize {
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
         owner = msg.sender;
-        horses.customPreGasLimit = 100000;
-        horses.customPostGasLimit = 200000;
+        horses.customPreGasLimit = 120000;
+        horses.customPostGasLimit = 230000;
     }
     
     modifier onlyOwner {
@@ -54,7 +54,7 @@ contract oraclizeController is usingOraclize {
     }
     
     // utility function to convert string to integer with precision consideration
-    function stringToUintNormalize(string s) internal pure returns (uint result) {
+    function stringToUintNormalize(string memory s) internal pure returns (uint result) {
         uint p =2;
         bool precision=false;
         bytes memory b = bytes(s);
@@ -62,8 +62,9 @@ contract oraclizeController is usingOraclize {
         result = 0;
         for (i = 0; i < b.length; i++) {
             if (precision) {p = p-1;}
-            if (uint(b[i]) == 46){precision = true;}
-            uint c = uint(b[i]);
+            // if (uint(b[i]) == uint(46)){precision = true;}
+            if (uint8(b[i]) == uint8(46)){precision = true;}
+            uint8 c = uint8(b[i]);
             if (c >= 48 && c <= 57) {result = result * 10 + (c - 48);}
             if (precision && p == 0){return result;}
         }
@@ -119,7 +120,7 @@ contract oraclizeController is usingOraclize {
     }
     
     //oraclize callback method
-    function __callback(bytes32 myid, string result, bytes proof) public {
+    function __callback(bytes32 myid, string memory result, bytes memory proof) public {
         require (msg.sender == oraclize_cbAddress());
         require (stringToUintNormalize(result) > 0);
         bytes32 coin_pointer; // variable to differentiate different callbacks
@@ -143,20 +144,36 @@ contract oraclizeController is usingOraclize {
         }
     }
     
-    function ethorseOracle(address raceAddress, bytes32 coin_pointer, string result, bool isPrePrice) external onlyOwner {
+    function ethorseOracle(address raceAddress, bytes32 coin_pointer, string calldata result, bool isPrePrice, uint32 lastUpdated ) external onlyOwner {
         emit RemoteBettingCloseInfo(raceAddress);
         Race race = Race(raceAddress);
+        uint32 starting_time;
+        uint32 betting_duration;
+        uint32 race_duration;
         if (isPrePrice) {
-            coinIndex[raceAddress][coin_pointer].pre = stringToUintNormalize(result);
+            starting_time = race.getChronus()[0];
+            betting_duration = race.getChronus()[1];
+            if (lastUpdated < starting_time + betting_duration + 800 &&
+                lastUpdated > starting_time + betting_duration - 800) {
+                    coinIndex[raceAddress][coin_pointer].pre = stringToUintNormalize(result);
+                    race.priceCallback(coin_pointer, stringToUintNormalize(result), isPrePrice);
+            } else {
+                race.forceVoidExternal();
+            }
         } else {
-            coinIndex[raceAddress][coin_pointer].post = stringToUintNormalize(result);
+            starting_time = race.getChronus()[0];
+            race_duration = race.getChronus()[2];
+            if (lastUpdated < starting_time + race_duration + 800 &&
+                lastUpdated > starting_time + race_duration - 800) {
+                    coinIndex[raceAddress][coin_pointer].post = stringToUintNormalize(result);
+                    race.priceCallback(coin_pointer, stringToUintNormalize(result), isPrePrice);
+            }
         }
-        race.priceCallback(coin_pointer, stringToUintNormalize(result), isPrePrice);
     }
 }
 
 contract BettingController is oraclizeController {
-    address owner;
+    address payable owner;
     Race race;
 
     mapping (address => bool) public isOraclizeEnabled;
