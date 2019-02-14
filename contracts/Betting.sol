@@ -179,7 +179,7 @@ contract Betting{
             total_reward = total_reward.sub(house_fee);
             house_takeout.transfer(house_fee);
 
-            // mle takeout
+            // ethouse takeout
             uint ethouse_fee = house_fee/2;
             require(ethouse_fee < address(this).balance);
             total_reward = total_reward.sub(ethouse_fee);
