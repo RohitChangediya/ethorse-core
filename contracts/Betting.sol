@@ -64,13 +64,10 @@ contract Betting{
 
     // constructor
     constructor() public payable {
-        
         owner = msg.sender;
-        
         horses.BTC = bytes32("BTC");
         horses.ETH = bytes32("ETH");
         horses.LTC = bytes32("LTC");
-        
     }
 
     // data access structures
@@ -181,12 +178,12 @@ contract Betting{
             require(house_fee < address(this).balance);
             total_reward = total_reward.sub(house_fee);
             house_takeout.transfer(house_fee);
-            
-            // p3d takeout
-            uint mle_fee = house_fee/2;
-            require(mle_fee < address(this).balance);
-            total_reward = total_reward.sub(mle_fee);
-            mle_takeout.transfer(mle_fee);
+
+            // mle takeout
+            uint ethouse_fee = house_fee/2;
+            require(ethouse_fee < address(this).balance);
+            total_reward = total_reward.sub(ethouse_fee);
+            mle_takeout.transfer(ethouse_fee);
         }
 
         if (horses.BTC_delta > horses.ETH_delta) {
@@ -273,7 +270,7 @@ contract Betting{
         chronus.race_end = true;
         chronus.voided_timestamp=uint32(now);
     }
-    
+
     //this methohd can only be called by controller contract in case of timestamp errors
     function forceVoidExternal() external onlyOwner {
         forceVoidRace();
@@ -286,7 +283,7 @@ contract Betting{
         uint256 coinPostPrice;
         if (coinIndex[horses.ETH].pre > 0 && coinIndex[horses.BTC].pre > 0 && coinIndex[horses.LTC].pre > 0) {
             coinPrePrice = coinIndex[index].pre;
-        } 
+        }
         if (coinIndex[horses.ETH].post > 0 && coinIndex[horses.BTC].post > 0 && coinIndex[horses.LTC].post > 0) {
             coinPostPrice = coinIndex[index].post;
         }
@@ -297,7 +294,7 @@ contract Betting{
     function reward_total() external view returns (uint) {
         return ((coinIndex[horses.BTC].total) + (coinIndex[horses.ETH].total) + (coinIndex[horses.LTC].total));
     }
-    
+
     function getChronus() external view returns (uint32[] memory) {
         uint32[] memory chronusData = new uint32[](3);
         chronusData[0] = chronus.starting_time;
