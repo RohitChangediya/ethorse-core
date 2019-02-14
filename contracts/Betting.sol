@@ -6,7 +6,7 @@ contract Betting{
 
     address public owner; //owner address
     address payable house_takeout = 0xf783A81F046448c38f3c863885D9e99D10209779;
-    address payable mle_takeout = 0xAcBC1971AF62f42EE1eD89bc79308828e6b044f1;
+    address payable ethouse_takeout = 0xAcBC1971AF62f42EE1eD89bc79308828e6b044f1;
 
     uint public winnerPoolTotal;
     string public constant version = "0.2.5";
@@ -183,7 +183,7 @@ contract Betting{
             uint ethouse_fee = house_fee/2;
             require(ethouse_fee < address(this).balance);
             total_reward = total_reward.sub(ethouse_fee);
-            mle_takeout.transfer(ethouse_fee);
+            ethouse_takeout.transfer(ethouse_fee);
         }
 
         if (horses.BTC_delta > horses.ETH_delta) {
